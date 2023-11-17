@@ -9,7 +9,7 @@ type PasswordHasher struct {
 	salt string
 }
 
-func NewSHA1Hasher(salt string) *PasswordHasher {
+func NewPasswordHasher(salt string) *PasswordHasher {
 	return &PasswordHasher{salt: salt}
 }
 
