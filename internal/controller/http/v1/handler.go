@@ -25,7 +25,7 @@ func (h *Handler) Init(port string) error {
 	auth := router.Group("/auth")
 	{
 		auth.POST("/sign-up", h.signUp)
-		auth.GET("sign-in", h.signIn)
+		auth.GET("/sign-in", h.signIn)
 	}
 
 	if err := router.Run(port); err != nil {
