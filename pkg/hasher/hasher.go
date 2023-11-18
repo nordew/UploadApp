@@ -6,6 +6,7 @@ import (
 )
 
 type PasswordHasher interface {
+	// Hash hashes the given password string and returns the hashed string.
 	Hash(password string) (string, error)
 }
 

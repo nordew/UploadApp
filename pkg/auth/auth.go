@@ -7,6 +7,8 @@ import (
 )
 
 type JWTToken interface {
+	// NewJWTToken creates a new JSON Web Token (JWT) with the given ID.
+	// It returns the token string and an error if the operation fails.
 	NewJWTToken(id string) (string, error)
 }
 

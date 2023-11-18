@@ -10,7 +10,10 @@ import (
 )
 
 type Users interface {
+	// SignUp creates a new user account.
 	SignUp(ctx context.Context, input entity.SignUpInput) error
+	// SignIn retrieves a user from the database by email and password.
+	// It returns an access token and an error if the operation fails or the user is not found.
 	SignIn(ctx context.Context, input entity.SignInInput) (string, error)
 }
 

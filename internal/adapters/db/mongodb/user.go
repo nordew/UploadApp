@@ -11,7 +11,10 @@ import (
 )
 
 type UserRepository interface {
+	// Create creates a new user in the database.
 	Create(ctx context.Context, user entity.User) error
+	// GetByCredentials retrieves a user from the database by email and password.
+	// It returns an error if the operation fails or the user is not found.
 	GetByCredentials(ctx context.Context, email, password string) (entity.User, error)
 }
 
