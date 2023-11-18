@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 
+	uuid "github.com/google/uuid"
 	"github.com/nordew/UploadApp/internal/domain/entity"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,6 +23,9 @@ func NewUserStorage(db *mongo.Collection) UserStorage {
 }
 
 func (s *UserStorage) Create(ctx context.Context, user *entity.User) error {
+	id := uuid.New()
+	user.ID = id.String()
+
 	marshalledUser, err := bson.Marshal(user)
 	if err != nil {
 		return err
