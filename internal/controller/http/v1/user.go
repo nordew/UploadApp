@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,8 +13,8 @@ func (h *Handler) signUp(c *gin.Context) {
 	var input entity.SignUpInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		writeResponse(c, http.StatusBadRequest, "failed to parse user")
-		h.logger.Error("signUp: failed to parse user ", err)
+		writeResponse(c, http.StatusBadRequest, "invlid JSON body")
+		h.logger.Error("signUp: invalid JSON body ", err)
 		return
 	}
 
@@ -23,7 +24,7 @@ func (h *Handler) signUp(c *gin.Context) {
 		return
 	}
 
-	writeResponse(c, http.StatusCreated, "user created")
+	writeResponse(c, http.StatusCreated, fmt.Sprintf("user %s was created", input.Name))
 	h.logger.Debug("signUp: user was created ")
 }
 
