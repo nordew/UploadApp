@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 
 	uuid "github.com/google/uuid"
 	"github.com/nordew/UploadApp/internal/domain/entity"
@@ -23,15 +24,14 @@ func NewUserStorage(db *mongo.Collection) UserStorage {
 }
 
 func (s *UserStorage) Create(ctx context.Context, user *entity.User) error {
-	id := uuid.New()
-	user.ID = id.String()
+	user.ID = uuid.NewString()
 
 	marshalledUser, err := bson.Marshal(user)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.InsertOne(context.TODO(), marshalledUser)
+	_, err = s.db.InsertOne(ctx, marshalledUser)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (s *UserStorage) GetByCredentials(ctx context.Context, email, password stri
 
 	err := s.db.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("user not found")
 	}
 
 	return &user, nil
