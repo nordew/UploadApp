@@ -26,3 +26,25 @@ func (h *Handler) signUp(c *gin.Context) {
 	writeResponse(c, http.StatusCreated, "user created")
 	h.logger.Debug("signUp: user was created ")
 }
+
+func (h *Handler) signIn(c *gin.Context) {
+	var input entity.SignInInput
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeResponse(c, http.StatusBadRequest, "failed to parse data")
+		h.logger.Error("signUp: failed to parse data ", err)
+		return
+	}
+
+	acccesToken, err := h.userService.SignIn(context.TODO(), input)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "invalid email or password")
+		h.logger.Error("signIn: invalid email or password ", err)
+
+		// TODO: error for password and for token
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": acccesToken})
+}
