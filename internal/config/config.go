@@ -5,6 +5,7 @@ import "github.com/spf13/viper"
 type ConfigInfo struct {
 	DBName string
 	Salt   string
+	Secret string
 }
 
 func NewConfig(name, fileType, path string) (*ConfigInfo, error) {
