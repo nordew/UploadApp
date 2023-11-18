@@ -5,15 +5,19 @@ import (
 	"fmt"
 )
 
-type PasswordHasher struct {
+type PasswordHasher interface {
+	Hash(password string) (string, error)
+}
+
+type hasher struct {
 	salt string
 }
 
-func NewPasswordHasher(salt string) *PasswordHasher {
-	return &PasswordHasher{salt: salt}
+func NewPasswordHasher(salt string) *hasher {
+	return &hasher{salt: salt}
 }
 
-func (h *PasswordHasher) Hash(password string) (string, error) {
+func (h *hasher) Hash(password string) (string, error) {
 	hash := sha1.New()
 
 	if _, err := hash.Write([]byte(password)); err != nil {
