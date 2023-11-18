@@ -40,7 +40,7 @@ func main() {
 
 	// Service Deps
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
-	token := auth.NewToken(jwt.Token{}, cfg.Secret, time.Now().Add(15*time.Minute))
+	token := auth.NewAuth(jwt.Token{}, cfg.Secret, time.Now().Add(15*time.Minute))
 
 	// Services
 	userService := service.NewUserService(userRepository, hasher, token)

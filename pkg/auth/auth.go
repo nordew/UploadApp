@@ -6,24 +6,24 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-type JWTToken interface {
+type Token interface {
 	// NewJWTToken creates a new JSON Web Token (JWT) with the given ID.
 	// It returns the token string and an error if the operation fails.
-	NewJWTToken(id string) (string, error)
+	NewToken(id string) (string, error)
 }
 
-type Token struct {
+type Auth struct {
 	jwt jwt.Token
 
 	secret     string
 	expiration time.Time
 }
 
-func NewToken(jwt jwt.Token, secret string, expiration time.Time) *Token {
-	return &Token{}
+func NewAuth(jwt jwt.Token, secret string, expiration time.Time) *Auth {
+	return &Auth{}
 }
 
-func (t *Token) NewJWTToken(id string) (string, error) {
+func (t *Auth) NewToken(id string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"subject":    id,
 		"issued_at":  time.Now().Unix(),

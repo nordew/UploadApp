@@ -20,14 +20,14 @@ type Users interface {
 type UserService struct {
 	storage mongodb.UserStorage
 	hasher  hasher.PasswordHasher
-	token   auth.JWTToken
+	auth    auth.Token
 }
 
-func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, token auth.JWTToken) *UserService {
+func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, auth auth.Token) *UserService {
 	return &UserService{
 		storage: storage,
 		hasher:  hasher,
-		token:   token,
+		auth:    auth,
 	}
 }
 
@@ -69,7 +69,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", err
 	}
 
-	accessToken, err := s.token.NewJWTToken(user.ID)
+	accessToken, err := s.auth.NewToken(user.ID)
 	if err != nil {
 		return "", err
 	}
