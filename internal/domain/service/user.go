@@ -47,7 +47,7 @@ func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) erro
 		Password: hashedPassword,
 	}
 
-	return s.storage.Create(context.TODO(), &user)
+	return s.storage.Create(context.TODO(), user)
 }
 
 func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (string, error) {
@@ -60,7 +60,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", err
 	}
 
-	user, err := s.storage.GetByCredentials(context.TODO(), input.Email, hashedPassword)
+	user, err := s.storage.GetByCredentials(ctx, input.Email, hashedPassword)
 	if err != nil {
 		return "", err
 	}
