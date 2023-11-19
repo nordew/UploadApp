@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Repositories
-	userRepository := mongodb.NewUserStorage(client.Database(cfg.DBName).Collection("users"))
+	userRepository := mongodb.NewUserStorage(client.Database(cfg.MongoDBName).Collection("users"))
 
 	// Service Deps
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
