@@ -10,23 +10,23 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type UserRepository interface {
+type UserStorage interface {
 	// Create creates a new user in the database.
 	Create(ctx context.Context, user entity.User) error
 	// GetByCredentials retrieves a user from the database by email and password.
 	// It returns an error if the operation fails or the user is not found.
-	GetByCredentials(ctx context.Context, email, password string) (entity.User, error)
+	GetByCredentials(ctx context.Context, email, password string) (*entity.User, error)
 }
 
-type UserStorage struct {
+type userStorage struct {
 	db *mongo.Collection
 }
 
-func NewUserStorage(db *mongo.Collection) UserStorage {
-	return UserStorage{db}
+func NewUserStorage(db *mongo.Collection) *userStorage {
+	return &userStorage{db}
 }
 
-func (s *UserStorage) Create(ctx context.Context, user *entity.User) error {
+func (s *userStorage) Create(ctx context.Context, user entity.User) error {
 	user.ID = uuid.NewString()
 
 	marshalledUser, err := bson.Marshal(user)
@@ -42,7 +42,7 @@ func (s *UserStorage) Create(ctx context.Context, user *entity.User) error {
 	return nil
 }
 
-func (s *UserStorage) GetByCredentials(ctx context.Context, email, password string) (*entity.User, error) {
+func (s *userStorage) GetByCredentials(ctx context.Context, email, password string) (*entity.User, error) {
 	filter := bson.M{"email": email, "password": password}
 
 	var user entity.User
