@@ -8,14 +8,16 @@ import (
 )
 
 type Handler struct {
-	userService service.UserService
-	logger      *slog.Logger
+	imageService service.Images
+	userService  service.Users
+	logger       *slog.Logger
 }
 
-func NewHandler(userService service.UserService, logger *slog.Logger) *Handler {
+func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger) *Handler {
 	return &Handler{
-		userService: userService,
-		logger:      logger,
+		userService:  userService,
+		imageService: imageService,
+		logger:       logger,
 	}
 }
 
@@ -26,6 +28,11 @@ func (h *Handler) Init(port string) error {
 	{
 		auth.POST("/sign-up", h.signUp)
 		auth.GET("/sign-in", h.signIn)
+	}
+
+	image := router.Group("/images")
+	{
+		image.POST("/upload", h.upload)
 	}
 
 	if err := router.Run(port); err != nil {
