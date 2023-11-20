@@ -10,8 +10,6 @@ import (
 )
 
 func (h *Handler) upload(c *gin.Context) {
-	var images []image.Image
-
 	file, err := c.FormFile("photo")
 	if err != nil {
 		h.logger.Error("error: %s", err)
@@ -42,9 +40,12 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	images = append(images, img)
+	id, err := h.imageService.Upload(context.TODO(), img)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "failed to upload image")
 
-	h.imageService.Upload(context.TODO(), images)
+		return
+	}
 
-	writeResponse(c, http.StatusOK, "image posted")
+	c.JSON(http.StatusOK, gin.H{"id": id})
 }
