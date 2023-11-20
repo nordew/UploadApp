@@ -7,6 +7,7 @@ type ConfigInfo struct {
 	Salt          string
 	Secret        string
 	MinioHost     string
+	MinioPort     string
 	MinioUser     string
 	MinioPassword string
 }
