@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/nfnt/resize"
@@ -19,7 +20,7 @@ const (
 )
 
 type Images interface {
-	Upload(ctx context.Context, images []image.Image) error
+	Upload(ctx context.Context, images image.Image) (string, error)
 }
 
 type ImageService struct {
@@ -32,33 +33,40 @@ func NewImageService(storage miniodb.ImageStorage) *ImageService {
 	}
 }
 
-func (s *ImageService) Upload(ctx context.Context, images []image.Image) error {
-	for _, v := range images {
+func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, error) {
+	imagesRendered, quality := ImageQuality(image)
+
+	generatedId := uuid.NewString()
+
+	for i, v := range imagesRendered {
 		buf := new(bytes.Buffer)
 		if err := jpeg.Encode(buf, v, nil); err != nil {
-			return err
+			return "", err
 		}
 
 		reader := bytes.NewReader(buf.Bytes())
 
-		image := entity.Image{
-			ID:     uuid.NewString(),
-			Name:   fmt.Sprintf("image"),
+		sizeInMB := float64(reader.Size()) / (1024 * 1024)
+		if sizeInMB > 10 {
+			log.Print("size error")
+			return "", errors.New("file is bigger than 10mb")
+		}
+
+		idFormatted := fmt.Sprintf("%s_%d.jpg", generatedId, quality[i])
+
+		resImage := entity.Image{
+			Name:   idFormatted,
 			Size:   reader.Size(),
 			Reader: reader,
 		}
 
-		sizeInMB := float64(image.Size) / (1024 * 1024)
-		if sizeInMB > 10 {
-			return errors.New("file is bigger than 10mb")
-		}
-
-		if err := s.storage.Upload(ctx, image); err != nil {
-			return err
+		if err := s.storage.Upload(ctx, resImage); err != nil {
+			log.Printf("upload error: %s", err)
+			return "", err
 		}
 	}
 
-	return nil
+	return generatedId, nil
 }
 
 func ImageQuality(img image.Image) ([]image.Image, []int) {
