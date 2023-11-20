@@ -3,9 +3,12 @@ package config
 import "github.com/spf13/viper"
 
 type ConfigInfo struct {
-	DBName string
-	Salt   string
-	Secret string
+	MongoDBName   string
+	Salt          string
+	Secret        string
+	MinioHost     string
+	MinioUser     string
+	MinioPassword string
 }
 
 func NewConfig(name, fileType, path string) (*ConfigInfo, error) {
