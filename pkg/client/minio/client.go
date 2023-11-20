@@ -5,8 +5,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func NewMinioClient(host, user, password string, ssl bool) (*minio.Client, error) {
-	endpoint := host
+func NewMinioClient(host, user, password string, ssl bool, port string) (*minio.Client, error) {
+	endpoint := host + ":" + port
 	accessKeyID := user
 	secretAccessKey := password
 	useSSL := ssl
