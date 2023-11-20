@@ -38,7 +38,7 @@ func main() {
 		logger.Error("failed to connect to monggo: ", err)
 	}
 
-	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false)
+	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false, cfg.MinioPort)
 	if err != nil {
 		logger.Error("failed to connect to minio: %s", err)
 	}
