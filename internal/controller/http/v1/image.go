@@ -2,9 +2,9 @@ package v1
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/streadway/amqp"
 	"image"
-	"image/jpeg"
 	"io"
 	"net/http"
 
@@ -42,11 +42,10 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	var imgBytes []byte
-	buffer := bytes.NewBuffer(imgBytes)
-	err = jpeg.Encode(buffer, img, nil)
+	marshalledImg, err := json.Marshal(&img)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to encode image")
+		writeResponse(c, http.StatusInternalServerError, "failed to marshall image")
+
 		return
 	}
 
@@ -56,11 +55,13 @@ func (h *Handler) upload(c *gin.Context) {
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "image/jpeg",
-			Body:        imgBytes,
+			ContentType: "application/json",
+			Body:        marshalledImg,
 		})
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to publish message")
+		writeResponse(c, http.StatusInternalServerError, "failed to add image to queue")
+
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "added to queue"})
