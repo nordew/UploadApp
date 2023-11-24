@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/nordew/UploadApp/internal/domain/service"
 	"github.com/streadway/amqp"
 	"image"
@@ -41,9 +41,10 @@ func (c *Consumer) Consume(ctx context.Context) error {
 	}
 
 	for d := range msgs {
-		img, _, err := image.Decode(bytes.NewReader(d.Body))
-		if err != nil {
-			c.logger.Error("Decode() error: ", err)
+		var img image.Image
+
+		if err := json.Unmarshal(d.Body, &img); err != nil {
+			c.logger.Error("Unmarshall() error: ", err)
 			return err
 		}
 
