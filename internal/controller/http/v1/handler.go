@@ -5,19 +5,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nordew/UploadApp/internal/domain/service"
+	"github.com/streadway/amqp"
 )
 
 type Handler struct {
 	imageService service.Images
 	userService  service.Users
 	logger       *slog.Logger
+	channel      *amqp.Channel
 }
 
-func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger) *Handler {
+func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger, channel *amqp.Channel) *Handler {
 	return &Handler{
 		userService:  userService,
 		imageService: imageService,
 		logger:       logger,
+		channel:      channel,
 	}
 }
 
