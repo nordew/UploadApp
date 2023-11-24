@@ -81,7 +81,6 @@ func ImageQuality(img image.Image) ([]image.Image, []int) {
 }
 
 func reSize(img image.Image, width, height []uint) (pictures []image.Image) {
-
 	for i := 0; i <= stepOptimization; i++ {
 		pictures = append(pictures, resize.Resize(width[i], height[i], img, resize.Lanczos3))
 	}
