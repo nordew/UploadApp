@@ -10,6 +10,7 @@ type ConfigInfo struct {
 	MinioPort     string
 	MinioUser     string
 	MinioPassword string
+	Rabbit        string
 }
 
 func NewConfig(name, fileType, path string) (*ConfigInfo, error) {
