@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/streadway/amqp"
 	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 
@@ -42,7 +43,16 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	marshalledImg, err := json.Marshal(&img)
+	var imgBytesBuffer bytes.Buffer
+	if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
+		writeResponse(c, http.StatusInternalServerError, "failed to convert image to bytes")
+
+		return
+	}
+
+	imgBytes := imgBytesBuffer.Bytes()
+
+	marshalledImg, err := json.Marshal(&imgBytes)
 	if err != nil {
 		writeResponse(c, http.StatusInternalServerError, "failed to marshall image")
 
