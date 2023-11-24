@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/nordew/UploadApp/internal/domain/service"
@@ -41,10 +42,15 @@ func (c *Consumer) Consume(ctx context.Context) error {
 	}
 
 	for d := range msgs {
-		var img image.Image
+		var imgBytes []byte
+		if err := json.Unmarshal(d.Body, &imgBytes); err != nil {
+			c.logger.Error("Unmarshal() error: ", err)
+			return err
+		}
 
-		if err := json.Unmarshal(d.Body, &img); err != nil {
-			c.logger.Error("Unmarshall() error: ", err)
+		img, _, err := image.Decode(bytes.NewReader(imgBytes))
+		if err != nil {
+			c.logger.Error("Decode() error: ", err)
 			return err
 		}
 
