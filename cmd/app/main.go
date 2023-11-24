@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	controller "github.com/nordew/UploadApp/internal/controller/rabbit"
+	"github.com/nordew/UploadApp/pkg/client/rabbit"
+	"log"
 	"time"
 
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
@@ -40,7 +43,7 @@ func main() {
 
 	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false, cfg.MinioPort)
 	if err != nil {
-		logger.Error("failed to connect to minio: %s", err)
+		logger.Error("failed to connect to minio: ", err)
 	}
 
 	// Storages
@@ -55,10 +58,48 @@ func main() {
 	userService := service.NewUserService(userStorage, hasher, token)
 	imageService := service.NewImageService(imageStorage)
 
-	// Handler
-	handler := v1.NewHandler(userService, imageService, logger)
-
-	if err := handler.Init(PORT); err != nil {
-		logger.Error("failed to init router: ", err)
+	// Queue
+	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
+	if err != nil {
+		logger.Error("failed to connect to rabbit: ", err)
 	}
+
+	channel, err := conn.Channel()
+	if err != nil {
+		logger.Error("failed to open channel: ", err)
+
+	}
+
+	q, err := channel.QueueDeclare(
+		"hello", // name
+		false,   // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		logger.Error("failed to declare a queue")
+	}
+
+	// Consumer
+	go func() {
+		consumer := controller.NewConsumer(channel, q, logger)
+
+		if err := consumer.Consume(); err != nil {
+			logger.Error("failed to consume")
+		}
+
+		log.Println("consumer")
+	}()
+	// Handler
+	go func() {
+		handler := v1.NewHandler(userService, imageService, logger, channel)
+
+		if err := handler.Init(PORT); err != nil {
+			logger.Error("failed to init router: ", err)
+		}
+	}()
+
+	select {}
 }
