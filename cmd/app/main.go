@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	v1 "github.com/nordew/UploadApp/internal/controller/http/v1"
+	controller "github.com/nordew/UploadApp/internal/controller/rabbit"
+	"github.com/nordew/UploadApp/pkg/client/rabbit"
 	"time"
 
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
@@ -9,7 +12,6 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/nordew/UploadApp/internal/adapters/db/mongodb"
 	"github.com/nordew/UploadApp/internal/config"
-	v1 "github.com/nordew/UploadApp/internal/controller/http/v1"
 	"github.com/nordew/UploadApp/internal/domain/service"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/client/minio"
@@ -40,7 +42,7 @@ func main() {
 
 	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false, cfg.MinioPort)
 	if err != nil {
-		logger.Error("failed to connect to minio: %s", err)
+		logger.Error("failed to connect to minio: ", err)
 	}
 
 	// Storages
@@ -55,10 +57,47 @@ func main() {
 	userService := service.NewUserService(userStorage, hasher, token)
 	imageService := service.NewImageService(imageStorage)
 
-	// Handler
-	handler := v1.NewHandler(userService, imageService, logger)
-
-	if err := handler.Init(PORT); err != nil {
-		logger.Error("failed to init router: ", err)
+	// Queue
+	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
+	if err != nil {
+		logger.Error("failed to connect to rabbit: ", err)
 	}
+
+	channel, err := conn.Channel()
+	if err != nil {
+		logger.Error("failed to open channel: ", err)
+
+	}
+
+	q, err := channel.QueueDeclare(
+		"image", // name
+		false,   // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		logger.Error("failed to declare a queue")
+	}
+
+	// Consumer
+	consumer := controller.NewConsumer(channel, q, logger, imageService)
+
+	go func() {
+		if err := consumer.Consume(context.Background()); err != nil {
+			logger.Error("failed to consume")
+		}
+	}()
+
+	// Handler
+	go func() {
+		handler := v1.NewHandler(userService, imageService, logger, channel)
+
+		if err := handler.Init(PORT); err != nil {
+			logger.Error("failed to init router: ", err)
+		}
+	}()
+
+	select {}
 }
