@@ -2,11 +2,13 @@ package v1
 
 import (
 	"bytes"
-	"context"
-	"github.com/gin-gonic/gin"
+	"github.com/streadway/amqp"
 	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (h *Handler) upload(c *gin.Context) {
@@ -40,12 +42,26 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	id, err := h.imageService.Upload(context.TODO(), img)
+	var imgBytes []byte
+	buffer := bytes.NewBuffer(imgBytes)
+	err = jpeg.Encode(buffer, img, nil)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to upload image")
-
+		writeResponse(c, http.StatusInternalServerError, "failed to encode image")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id})
+	err = h.channel.Publish(
+		"",
+		"image",
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "image/jpeg",
+			Body:        imgBytes,
+		})
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "failed to publish message")
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "added to queue"})
 }
