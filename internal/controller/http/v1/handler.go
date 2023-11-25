@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/nordew/UploadApp/pkg/auth"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -13,14 +14,16 @@ type Handler struct {
 	userService  service.Users
 	logger       *slog.Logger
 	channel      *amqp.Channel
+	auth         auth.Authenticator
 }
 
-func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger, channel *amqp.Channel) *Handler {
+func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator) *Handler {
 	return &Handler{
 		userService:  userService,
 		imageService: imageService,
 		logger:       logger,
 		channel:      channel,
+		auth:         auth,
 	}
 }
 
