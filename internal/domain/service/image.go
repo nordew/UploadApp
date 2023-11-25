@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -45,12 +44,6 @@ func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, e
 		}
 
 		reader := bytes.NewReader(buf.Bytes())
-
-		sizeInMB := float64(reader.Size()) / (1024 * 1024)
-		if sizeInMB > 10 {
-			log.Print("size error")
-			return "", errors.New("file is bigger than 10mb")
-		}
 
 		idFormatted := fmt.Sprintf("%s_%d.jpg", generatedId, quality[i])
 
