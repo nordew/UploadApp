@@ -13,65 +13,73 @@ import (
 )
 
 func (h *Handler) upload(c *gin.Context) {
-	file, err := c.FormFile("photo")
+	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
-		h.logger.Error("error: %s", err)
-		writeResponse(c, http.StatusBadRequest, "invalid file")
-
+		h.logger.Error("Error parsing multipart form: %s", err)
+		writeResponse(c, http.StatusInternalServerError, "Failed to parse form")
 		return
 	}
 
-	openedFile, err := file.Open()
-	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to open file")
-
-		return
-	}
-	defer openedFile.Close()
-
-	content, err := io.ReadAll(openedFile)
-	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to read file")
-
+	files, ok := c.Request.MultipartForm.File["photo"]
+	if !ok || len(files) == 0 {
+		h.logger.Error("No file found in the 'photo' field")
+		writeResponse(c, http.StatusBadRequest, "No file found in the 'photo' field")
 		return
 	}
 
-	img, _, err := image.Decode(bytes.NewReader(content))
-	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to convert image")
+	for _, file := range files {
+		openedFile, err := file.Open()
+		if err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to open file")
 
-		return
-	}
+			return
+		}
+		defer openedFile.Close()
 
-	var imgBytesBuffer bytes.Buffer
-	if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to convert image to bytes")
+		content, err := io.ReadAll(openedFile)
+		if err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to read file")
 
-		return
-	}
+			return
+		}
 
-	imgBytes := imgBytesBuffer.Bytes()
+		img, _, err := image.Decode(bytes.NewReader(content))
+		if err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to convert image")
 
-	marshalledImg, err := json.Marshal(&imgBytes)
-	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to marshall image")
+			return
+		}
 
-		return
-	}
+		var imgBytesBuffer bytes.Buffer
+		if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to convert image to bytes")
 
-	err = h.channel.Publish(
-		"",
-		"image",
-		false,
-		false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        marshalledImg,
-		})
-	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to add image to queue")
+			return
+		}
 
-		return
+		imgBytes := imgBytesBuffer.Bytes()
+
+		marshalledImg, err := json.Marshal(&imgBytes)
+		if err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to marshall image")
+
+			return
+		}
+
+		err = h.channel.Publish(
+			"",
+			"image",
+			false,
+			false,
+			amqp.Publishing{
+				ContentType: "application/json",
+				Body:        marshalledImg,
+			})
+		if err != nil {
+			writeResponse(c, http.StatusInternalServerError, "failed to add image to queue")
+
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "added to queue"})
