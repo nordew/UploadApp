@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -20,7 +19,7 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		claims, err := h.userService.ParseToken(context.Background(), token)
+		_, err = h.auth.ParseToken(token)
 		if err != nil {
 			var validationError *jwt.ValidationError
 			if errors.As(err, &validationError) {
@@ -37,10 +36,6 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 			}
 			return
 		}
-
-		userId := claims["sub"]
-
-		writeResponse(c, http.StatusOK, userId.(string))
 	}
 }
 
