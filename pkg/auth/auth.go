@@ -24,10 +24,10 @@ func NewAuth(jwt jwt.Token, secret string, expiration time.Time) *Auth {
 }
 
 func (t *Auth) NewToken(id string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"subject":    id,
-		"issued_at":  time.Now().Unix(),
-		"expires_at": t.expiration.Unix(),
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
+		Subject:   id,
+		IssuedAt:  time.Now().Unix(),
+		ExpiresAt: t.expiration.Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(t.secret))
