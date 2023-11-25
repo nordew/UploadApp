@@ -54,7 +54,7 @@ func main() {
 	token := auth.NewAuth(jwt.Token{}, cfg.Secret, time.Now().Add(15*time.Minute))
 
 	// Services
-	userService := service.NewUserService(userStorage, hasher, token)
+	userService := service.NewUserService(userStorage, hasher, token, cfg.Secret)
 	imageService := service.NewImageService(imageStorage)
 
 	// Queue
