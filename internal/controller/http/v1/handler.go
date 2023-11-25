@@ -34,6 +34,7 @@ func (h *Handler) Init(port string) error {
 	}
 
 	image := router.Group("/images")
+	image.Use(h.AuthMiddleware())
 	{
 		image.POST("/upload", h.upload)
 	}
@@ -43,6 +44,11 @@ func (h *Handler) Init(port string) error {
 	}
 
 	return nil
+}
+
+func handleError(c *gin.Context, statusCode int, message string, err error) {
+	writeResponse(c, statusCode, message)
+	c.Abort()
 }
 
 func writeResponse(c *gin.Context, statusCode int, msg string) {
