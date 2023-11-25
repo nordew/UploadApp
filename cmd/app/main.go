@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
+	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
 	v1 "github.com/nordew/UploadApp/internal/controller/http/v1"
 	controller "github.com/nordew/UploadApp/internal/controller/rabbit"
 	"github.com/nordew/UploadApp/pkg/client/rabbit"
-	"time"
 
-	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
-
-	"github.com/golang-jwt/jwt"
 	"github.com/nordew/UploadApp/internal/adapters/db/mongodb"
 	"github.com/nordew/UploadApp/internal/config"
 	"github.com/nordew/UploadApp/internal/domain/service"
@@ -49,12 +46,12 @@ func main() {
 	userStorage := mongodb.NewUserStorage(mongoClient.Database(cfg.MongoDBName).Collection("users"))
 	imageStorage := miniodb.NewImageStorage(minioClient, "images")
 
-	// Service Deps
+	// Pkg
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
-	token := auth.NewAuth(jwt.Token{}, cfg.Secret, time.Now().Add(15*time.Minute))
+	authenticator := auth.NewAuth()
 
 	// Services
-	userService := service.NewUserService(userStorage, hasher, token, cfg.Secret)
+	userService := service.NewUserService(userStorage, hasher, authenticator, cfg.Secret)
 	imageService := service.NewImageService(imageStorage)
 
 	// Queue
@@ -92,7 +89,7 @@ func main() {
 
 	// Handler
 	go func() {
-		handler := v1.NewHandler(userService, imageService, logger, channel)
+		handler := v1.NewHandler(userService, imageService, logger, channel, authenticator)
 
 		if err := handler.Init(PORT); err != nil {
 			logger.Error("failed to init router: ", err)
