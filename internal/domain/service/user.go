@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"github.com/golang-jwt/jwt"
 	"github.com/nordew/UploadApp/internal/adapters/db/mongodb"
 	"github.com/nordew/UploadApp/internal/domain/entity"
 	"github.com/nordew/UploadApp/pkg/auth"
@@ -17,20 +15,17 @@ type Users interface {
 	// SignIn retrieves a user from the database by email and password.
 	// It returns an access token and an error if the operation fails or the user is not found.
 	SignIn(ctx context.Context, input entity.SignInInput) (string, error)
-
-	// Parsing Token from request
-	ParseToken(ctx context.Context, token string) (jwt.MapClaims, error)
 }
 
 type UserService struct {
 	storage mongodb.UserStorage
 	hasher  hasher.PasswordHasher
-	auth    auth.Token
+	auth    auth.Authenticator
 
 	hmacSecret string
 }
 
-func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, auth auth.Token, hmacSecret string) *UserService {
+func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
 	return &UserService{
 		storage:    storage,
 		hasher:     hasher,
@@ -77,31 +72,13 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", err
 	}
 
-	accessToken, err := s.auth.NewToken(user.ID)
+	accessToken, err := s.auth.GenerateToken(&auth.GenerateTokenClaimsOptions{
+		UserId:   user.ID,
+		UserName: user.Name,
+	})
 	if err != nil {
 		return "", err
 	}
 
 	return accessToken, nil
-}
-
-func (s *UserService) ParseToken(ctx context.Context, token string) (jwt.MapClaims, error) {
-	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-
-		secret := []byte(s.hmacSecret)
-		return secret, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	claims, ok := parsedToken.Claims.(jwt.MapClaims)
-	if !ok || !parsedToken.Valid {
-		return nil, fmt.Errorf("Invalid token or claims")
-	}
-
-	return claims, nil
 }
