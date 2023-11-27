@@ -40,6 +40,7 @@ func (h *Handler) Init(port string) error {
 	image.Use(h.AuthMiddleware())
 	{
 		image.POST("/upload", h.upload)
+		image.GET("/get-all", h.getAll)
 	}
 
 	if err := router.Run(port); err != nil {
