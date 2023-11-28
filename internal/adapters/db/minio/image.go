@@ -3,11 +3,16 @@ package miniodb
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/nordew/UploadApp/internal/domain/entity"
+)
+
+var (
+	ErrObjectNotFound = errors.New("object wasn't found")
 )
 
 type ImageStorage interface {
@@ -53,7 +58,7 @@ func (s *imageStorage) GetAll(ctx context.Context, id string) ([]entity.Image, e
 
 		objectData, err := s.db.GetObject(ctx, s.bucketName, object.Key, minio.GetObjectOptions{})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w", ErrObjectNotFound)
 		}
 		defer objectData.Close()
 
@@ -80,7 +85,7 @@ func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*ent
 
 	image, err := s.db.GetObject(ctx, s.bucketName, prompt, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w", ErrObjectNotFound)
 	}
 
 	buf := new(bytes.Buffer)
