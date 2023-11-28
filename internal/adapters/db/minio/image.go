@@ -3,9 +3,11 @@ package miniodb
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
+
 	"github.com/minio/minio-go/v7"
 	"github.com/nordew/UploadApp/internal/domain/entity"
-	"io"
 )
 
 type ImageStorage interface {
@@ -17,10 +19,6 @@ type ImageStorage interface {
 type imageStorage struct {
 	db         *minio.Client
 	bucketName string
-}
-
-func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*entity.Image, error) {
-	return nil, nil
 }
 
 func NewImageStorage(db *minio.Client, bucketName string) *imageStorage {
@@ -75,4 +73,27 @@ func (s *imageStorage) GetAll(ctx context.Context, id string) ([]entity.Image, e
 	}
 
 	return images, nil
+}
+
+func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*entity.Image, error) {
+	prompt := fmt.Sprintf("%s_%d", id, size)
+
+	image, err := s.db.GetObject(ctx, s.bucketName, prompt, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, image); err != nil {
+		return nil, err
+	}
+
+	preparedImage := entity.Image{
+		ID:     id,
+		Name:   prompt,
+		Size:   int64(buf.Len()),
+		Reader: bytes.NewReader(buf.Bytes()),
+	}
+
+	return &preparedImage, nil
 }
