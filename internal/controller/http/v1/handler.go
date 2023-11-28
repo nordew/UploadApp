@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"github.com/nordew/UploadApp/pkg/auth"
 	"log/slog"
+
+	"github.com/nordew/UploadApp/pkg/auth"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nordew/UploadApp/internal/domain/service"
@@ -41,6 +42,7 @@ func (h *Handler) Init(port string) error {
 	{
 		image.POST("/upload", h.upload)
 		image.GET("/get-all", h.getAll)
+		image.GET("/get", h.getBySize)
 	}
 
 	if err := router.Run(port); err != nil {
