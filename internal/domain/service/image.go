@@ -12,6 +12,7 @@ import (
 	"github.com/nfnt/resize"
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
 	"github.com/nordew/UploadApp/internal/domain/entity"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -34,14 +35,17 @@ func NewImageService(storage miniodb.ImageStorage) *ImageService {
 }
 
 func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, error) {
-	imagesRendered, quality := ImageQuality(image)
+	imagesRendered, quality, err := ImageQuality(image)
+	if err != nil {
+		return "", err
+	}
 
 	generatedId := uuid.NewString()
 
 	for i, v := range imagesRendered {
 		buf := new(bytes.Buffer)
 		if err := jpeg.Encode(buf, v, nil); err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to encode image")
 		}
 
 		reader := bytes.NewReader(buf.Bytes())
@@ -67,21 +71,43 @@ func (s *ImageService) GetAll(ctx context.Context, id string) ([]entity.Image, e
 	return s.storage.GetAll(ctx, id)
 }
 
-func ImageQuality(img image.Image) ([]image.Image, []int) {
+func ImageQuality(img image.Image) ([]image.Image, []int, error) {
+	if img == nil {
+		return nil, nil, errors.New("input image is nil")
+	}
+
 	photoHeight := uint(img.Bounds().Size().Y)
 	photoWidth := uint(img.Bounds().Size().X)
+
+	if photoHeight == 0 || photoWidth == 0 {
+		return nil, nil, errors.New("invalid image dimensions")
+	}
 
 	width := []uint{photoWidth, photoWidth - (photoWidth / 4), photoWidth / 2, photoWidth / 4}
 	height := []uint{photoHeight, photoHeight - (photoHeight / 4), photoHeight / 2, photoHeight / 4}
 	quality := []int{100, 75, 50, 25}
 
-	return reSize(img, width, height), quality
-}
-
-func reSize(img image.Image, width, height []uint) (pictures []image.Image) {
-	for i := 0; i <= stepOptimization; i++ {
-		pictures = append(pictures, resize.Resize(width[i], height[i], img, resize.Lanczos3))
+	resizedImages, err := reSize(img, width, height)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to resize images: %w", err)
 	}
 
-	return pictures
+	return resizedImages, quality, nil
+}
+
+func reSize(img image.Image, width, height []uint) ([]image.Image, error) {
+	if img == nil {
+		return nil, errors.New("input image is nil")
+	}
+
+	var pictures []image.Image
+	for i := 0; i <= stepOptimization; i++ {
+		resizedImg := resize.Resize(width[i], height[i], img, resize.Lanczos3)
+		if resizedImg == nil {
+			return nil, fmt.Errorf("failed to resize image at index %d", i)
+		}
+		pictures = append(pictures, resizedImg)
+	}
+
+	return pictures, nil
 }
