@@ -22,6 +22,7 @@ const (
 type Images interface {
 	Upload(ctx context.Context, images image.Image) (string, error)
 	GetAll(ctx context.Context, id string) ([]entity.Image, error)
+	GetBySize(ctx context.Context, id string, size int) (*entity.Image, error)
 }
 
 type ImageService struct {
@@ -69,6 +70,10 @@ func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, e
 
 func (s *ImageService) GetAll(ctx context.Context, id string) ([]entity.Image, error) {
 	return s.storage.GetAll(ctx, id)
+}
+
+func (s *ImageService) GetBySize(ctx context.Context, id string, size int) (*entity.Image, error) {
+	return s.storage.GetBySize(ctx, id, size)
 }
 
 func ImageQuality(img image.Image) ([]image.Image, []int, error) {
