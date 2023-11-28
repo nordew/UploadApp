@@ -13,14 +13,14 @@ func (h *Handler) signUp(c *gin.Context) {
 	var input entity.SignUpInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		writeResponse(c, http.StatusBadRequest, "invlid JSON body")
+		writeResponse(c, http.StatusBadRequest, "invalid JSON body")
 		h.logger.Error("signUp: invalid JSON body ", err)
 		return
 	}
 
 	if err := h.userService.SignUp(context.TODO(), input); err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to create user")
-		h.logger.Error("signUp: failed to create user ", err)
+		writeResponse(c, http.StatusInternalServerError, err.Error())
+		h.logger.Debug(err.Error())
 		return
 	}
 
@@ -39,11 +39,8 @@ func (h *Handler) signIn(c *gin.Context) {
 
 	acccesToken, err := h.userService.SignIn(context.TODO(), input)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "invalid email or password")
-		h.logger.Error("signIn: invalid email or password ", err)
-
-		// TODO: error for password and for token
-
+		writeResponse(c, http.StatusInternalServerError, err.Error())
+		h.logger.Error(err.Error())
 		return
 	}
 
