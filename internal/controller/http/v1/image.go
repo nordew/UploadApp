@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/nordew/UploadApp/internal/controller/http/dto"
-	"github.com/nordew/UploadApp/internal/domain/entity"
-	"github.com/streadway/amqp"
 	"image"
 	"image/jpeg"
 	"io"
 	"net/http"
 	"sync"
+
+	"github.com/nordew/UploadApp/internal/controller/http/dto"
+	"github.com/nordew/UploadApp/internal/domain/entity"
+	"github.com/streadway/amqp"
 
 	"github.com/gin-gonic/gin"
 )
@@ -94,14 +95,12 @@ func (h *Handler) getAll(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&getAllImageDTO); err != nil {
 		writeResponse(c, http.StatusBadRequest, "invalid JSON")
-
 		return
 	}
 
 	images, err := h.imageService.GetAll(context.Background(), getAllImageDTO.ID)
 	if err != nil {
 		writeResponse(c, http.StatusInternalServerError, "")
-
 		return
 	}
 
@@ -118,21 +117,49 @@ func (h *Handler) getAll(c *gin.Context) {
 			img, _, err := image.Decode(entityImage.Reader)
 			if err != nil {
 				writeResponse(c, http.StatusInternalServerError, "failed to decode image")
-
 				return
 			}
 
-			if err := jpeg.Encode(c.Writer, img, nil); err != nil {
+			var encodedImageBuffer bytes.Buffer
+			if err := jpeg.Encode(&encodedImageBuffer, img, nil); err != nil {
 				writeResponse(c, http.StatusInternalServerError, "failed to encode image")
-
 				return
 			}
 
-			c.Writer.(http.Flusher).Flush()
+			c.Data(http.StatusOK, "image/jpeg", encodedImageBuffer.Bytes())
 		}(v)
 	}
 
 	wg.Wait()
 
 	c.AbortWithStatus(http.StatusOK)
+}
+
+func (h *Handler) getBySize(c *gin.Context) {
+	var GetImageBySizeDTO dto.GetImageBySizeDTO
+
+	if err := c.ShouldBindJSON(&GetImageBySizeDTO); err != nil {
+		writeResponse(c, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	entityImg, err := h.imageService.GetBySize(context.Background(), GetImageBySizeDTO.ID, GetImageBySizeDTO.Size)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	img, _, err := image.Decode(entityImg.Reader)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "failed to decode image")
+		return
+	}
+
+	var encodedImageBuffer bytes.Buffer
+	if err := jpeg.Encode(&encodedImageBuffer, img, nil); err != nil {
+		writeResponse(c, http.StatusInternalServerError, "failed to encode image")
+		return
+	}
+
+	c.Data(http.StatusOK, "image/jpeg", encodedImageBuffer.Bytes())
 }
