@@ -19,9 +19,20 @@ const (
 	stepOptimization = 3
 )
 
+// Images is the interface that defines methods for interacting with image-related operations.
+// It provides functionalities for uploading, retrieving, and manipulating images.
 type Images interface {
-	Upload(ctx context.Context, images image.Image) (string, error)
+	// Upload uploads the given image and returns a unique identifier for the uploaded image.
+	// The image is processed to create multiple versions with different qualities.
+	// It returns the generated identifier and an error if the upload fails.
+	Upload(ctx context.Context, image image.Image) (string, error)
+
+	// GetAll retrieves all images associated with the specified identifier.
+	// It returns a slice of Image entities and an error if the retrieval fails.
 	GetAll(ctx context.Context, id string) ([]entity.Image, error)
+
+	// GetBySize retrieves an image of the specified size associated with the given identifier.
+	// It returns the requested Image entity and an error if the retrieval fails.
 	GetBySize(ctx context.Context, id string, size int) (*entity.Image, error)
 }
 
