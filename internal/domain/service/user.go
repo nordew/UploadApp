@@ -15,12 +15,14 @@ var (
 	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
+// Users is the interface that defines methods for user-related operations, such as sign-up and sign-in.
 type Users interface {
-	// SignUp creates a new user account.
+	// SignUp creates a new user account based on the provided sign-up input.
+	// It returns an error if the operation fails, including cases where the provided email already exists.
 	SignUp(ctx context.Context, input entity.SignUpInput) error
 
-	// SignIn retrieves a user from the database by email and password.
-	// It returns an access token and an error if the operation fails or the user is not found.
+	// SignIn retrieves a user from the database by email and password, and generates an access token.
+	// It returns the generated access token and an error if the operation fails or the user is not found.
 	SignIn(ctx context.Context, input entity.SignInInput) (string, error)
 }
 
