@@ -15,9 +15,18 @@ var (
 	ErrObjectNotFound = errors.New("object wasn't found")
 )
 
+// ImageStorage is the interface that defines methods for storing and retrieving images in an object storage service.
 type ImageStorage interface {
-	Upload(ctx context.Context, images entity.Image) error
+	// Upload uploads the provided image to the storage service with the specified identifier.
+	// It returns an error if the upload fails.
+	Upload(ctx context.Context, image entity.Image) error
+
+	// GetAll retrieves all images associated with the specified identifier from the storage service.
+	// It returns a slice of Image entities and an error if the retrieval fails.
 	GetAll(ctx context.Context, id string) ([]entity.Image, error)
+
+	// GetBySize retrieves an image of the specified size associated with the given identifier from the storage service.
+	// It returns the requested Image entity and an error if the retrieval fails.
 	GetBySize(ctx context.Context, id string, size int) (*entity.Image, error)
 }
 
