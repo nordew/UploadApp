@@ -25,19 +25,6 @@ UploadHub is a simple image upload and storage service with user registration an
   - `GET /images/get-all`: Retrieve all uploaded images.
   - `GET /images/get`: Retrieve an image by its size (100, 75, 50, or 25). Requires authentication.
 
-## Code Structure
-
-The project's code is organized as follows:
-
-- **Routes:** Authentication and image-related routes are defined in the respective route groups.
-
-- **Middleware:** Authentication middleware is used to secure image-related routes.
-
-- **Data Models:**
-  - `Image`: Represents the structure of an uploaded image.
-  - `SignInInput`: Input structure for user sign-in.
-  - `SignUpInput`: Input structure for user registration.
-
 ## Getting Started
 
 1. Clone the repository: `git clone https://github.com/your-username/UploadHub.git`
