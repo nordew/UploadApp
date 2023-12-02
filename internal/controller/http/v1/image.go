@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"sync"
 
@@ -20,74 +21,82 @@ import (
 func (h *Handler) upload(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
-		h.logger.Error("Error parsing multipart form: %s", err)
 		writeResponse(c, http.StatusInternalServerError, "Failed to parse form")
 		return
 	}
 
 	files, ok := c.Request.MultipartForm.File["photo"]
 	if !ok || len(files) == 0 {
-		h.logger.Error("No file found in the 'photo' field")
 		writeResponse(c, http.StatusBadRequest, "No file found in the 'photo' field")
 		return
 	}
 
 	for _, file := range files {
-		openedFile, err := file.Open()
-		if err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to open file")
-
-			return
-		}
-		defer openedFile.Close()
-
-		content, err := io.ReadAll(openedFile)
-		if err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to read file")
-
-			return
-		}
-
-		img, _, err := image.Decode(bytes.NewReader(content))
-		if err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to convert image")
-
-			return
-		}
-
-		var imgBytesBuffer bytes.Buffer
-		if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to convert image to bytes")
-
-			return
-		}
-
-		imgBytes := imgBytesBuffer.Bytes()
-
-		marshalledImg, err := json.Marshal(&imgBytes)
-		if err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to marshall image")
-
-			return
-		}
-
-		err = h.channel.Publish(
-			"",
-			"image",
-			false,
-			false,
-			amqp.Publishing{
-				ContentType: "application/json",
-				Body:        marshalledImg,
-			})
-		if err != nil {
-			writeResponse(c, http.StatusInternalServerError, "failed to add image to queue")
-
+		if err := h.processFile(c, file); err != nil {
 			return
 		}
 	}
 
-	writeResponse(c, http.StatusCreated, "added to queue")
+	writeResponse(c, http.StatusCreated, "Added to queue")
+}
+
+func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader) error {
+	openedFile, err := file.Open()
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to open file")
+		return err
+	}
+	defer openedFile.Close()
+
+	content, err := io.ReadAll(openedFile)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to read file")
+		return err
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(content))
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to convert image")
+		return err
+	}
+
+	var imgBytesBuffer bytes.Buffer
+	if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to convert image to bytes")
+		return err
+	}
+
+	imgBytes := imgBytesBuffer.Bytes()
+
+	if err := h.publishImageToQueue(c, imgBytes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
+	marshalledImg, err := json.Marshal(&imgBytes)
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to marshall image")
+		return err
+	}
+
+	err = h.channel.Publish(
+		"",
+		"image",
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        marshalledImg,
+		})
+	if err != nil {
+		writeResponse(c, http.StatusInternalServerError, "Failed to add image to queue")
+		return err
+	}
+
+	return nil
 }
 
 func (h *Handler) getAll(c *gin.Context) {
