@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/nordew/UploadApp/pkg/payment"
 	"log/slog"
+	"net/http"
 
 	"github.com/nordew/UploadApp/pkg/auth"
 
@@ -61,11 +62,19 @@ func (h *Handler) Init(port string) error {
 	return nil
 }
 
-func handleError(c *gin.Context, statusCode int, message string, err error) {
-	writeResponse(c, statusCode, message)
-	c.Abort()
+func writeResponse(c *gin.Context, statusCode int, h gin.H) {
+	c.JSON(statusCode, h)
 }
 
-func writeResponse(c *gin.Context, statusCode int, msg string) {
-	c.JSON(statusCode, gin.H{"message": msg})
+func invalidJSONResponse(c *gin.Context) {
+	c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+}
+
+func writeErrorResponse(c *gin.Context, statusCode int, error string, errorDesc string) {
+	response := gin.H{
+		"error":             error,
+		"error_descriptipn": errorDesc,
+	}
+
+	c.JSON(statusCode, response)
 }
