@@ -3,18 +3,19 @@ package main
 import (
 	"context"
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
+	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
+	"github.com/nordew/UploadApp/internal/config"
 	v1 "github.com/nordew/UploadApp/internal/controller/http/v1"
 	controller "github.com/nordew/UploadApp/internal/controller/rabbit"
-	"github.com/nordew/UploadApp/pkg/client/rabbit"
-
-	"github.com/nordew/UploadApp/internal/adapters/db/mongodb"
-	"github.com/nordew/UploadApp/internal/config"
 	"github.com/nordew/UploadApp/internal/domain/service"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/client/minio"
-	mongo "github.com/nordew/UploadApp/pkg/client/mongodb"
+	"github.com/nordew/UploadApp/pkg/client/psql"
+	"github.com/nordew/UploadApp/pkg/client/rabbit"
 	"github.com/nordew/UploadApp/pkg/hasher"
 	"github.com/nordew/UploadApp/pkg/logging"
+	"github.com/nordew/UploadApp/pkg/payment"
+	"github.com/stripe/stripe-go/v76"
 )
 
 const (
@@ -32,18 +33,28 @@ func main() {
 	}
 
 	// DB
-	mongoClient, err := mongo.NewClient(context.TODO())
+	postgresClient, err := psql.NewPostgres(&psql.ConnectionInfo{
+		Host:     cfg.PGHost,
+		Port:     cfg.PGPort,
+		User:     cfg.PGUser,
+		DBName:   cfg.PGDBName,
+		SSLMode:  cfg.PGSSLMode,
+		Password: cfg.PGPassword,
+	})
+
 	if err != nil {
-		logger.Error("failed to connect to monggo: ", err)
+		logger.Error("failed to connect to postgres: ", err)
+		return
 	}
 
 	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false, cfg.MinioPort)
 	if err != nil {
 		logger.Error("failed to connect to minio: ", err)
+		return
 	}
 
 	// Storages
-	userStorage := mongodb.NewUserStorage(mongoClient.Database(cfg.MongoDBName).Collection("users"))
+	userStorage := psqldb.NewUserStorage(postgresClient)
 	imageStorage := miniodb.NewImageStorage(minioClient, "images")
 
 	// Pkg
@@ -78,23 +89,50 @@ func main() {
 		logger.Error("failed to declare a queue")
 	}
 
-	// Consumer
+	// Stripe
+	stripe.Key = cfg.StripeKey
+	stripePayment := payment.NewPayement()
+
+	// Create a context that can be canceled to signal shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Handle OS signals to gracefully shutdown
+	//go func() {
+	//	sigCh := make(chan os.Signal, 1)
+	//	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	//	<-sigCh
+	//	logger.Info("Received shutdown signal")
+	//	cancel()
+	//}()
+
 	consumer := controller.NewConsumer(channel, q, logger, imageService)
 
 	go func() {
-		if err := consumer.Consume(context.Background()); err != nil {
+		if err := consumer.Consume(ctx); err != nil {
 			logger.Error("failed to consume")
 		}
 	}()
 
 	// Handler
 	go func() {
-		handler := v1.NewHandler(userService, imageService, logger, channel, authenticator)
+		handler := v1.NewHandler(userService, imageService, logger, channel, authenticator, stripePayment)
 
 		if err := handler.Init(PORT); err != nil {
 			logger.Error("failed to init router: ", err)
+			cancel()
 		}
 	}()
 
 	select {}
+	//
+	//<-ctx.Done()
+	//
+	//logger.Info("Shutting down...")
+	//
+	//// Close RabbitMQ connection
+	//if err := conn.Close(); err != nil {
+	//	logger.Error("failed to close RabbitMQ connection: ", err)
+	//}
+	//
+	//logger.Info("Shutdown complete.")
 }
