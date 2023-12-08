@@ -21,13 +21,13 @@ import (
 func (h *Handler) upload(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to parse form")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to parse form")
 		return
 	}
 
 	files, ok := c.Request.MultipartForm.File["photo"]
 	if !ok || len(files) == 0 {
-		writeResponse(c, http.StatusBadRequest, "No file found in the 'photo' field")
+		writeErrorResponse(c, http.StatusBadRequest, "image", "No file found in the 'photo' field")
 		return
 	}
 
@@ -37,32 +37,36 @@ func (h *Handler) upload(c *gin.Context) {
 		}
 	}
 
-	writeResponse(c, http.StatusCreated, "Added to queue")
+	response := gin.H{
+		"success": "adeed to queue",
+	}
+
+	writeResponse(c, http.StatusCreated, response)
 }
 
 func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader) error {
 	openedFile, err := file.Open()
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to open file")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to open file")
 		return err
 	}
 	defer openedFile.Close()
 
 	content, err := io.ReadAll(openedFile)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to read file")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to read file")
 		return err
 	}
 
 	img, _, err := image.Decode(bytes.NewReader(content))
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to convert image")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to convert image")
 		return err
 	}
 
 	var imgBytesBuffer bytes.Buffer
 	if err := jpeg.Encode(&imgBytesBuffer, img, nil); err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to convert image to bytes")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to convert image to bytes")
 		return err
 	}
 
@@ -78,7 +82,7 @@ func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader) error 
 func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
 	marshalledImg, err := json.Marshal(&imgBytes)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to marshall image")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to marshall image")
 		return err
 	}
 
@@ -92,7 +96,7 @@ func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
 			Body:        marshalledImg,
 		})
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "Failed to add image to queue")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to add image to queue")
 		return err
 	}
 
@@ -103,13 +107,13 @@ func (h *Handler) getAll(c *gin.Context) {
 	var getAllImageDTO dto.GetAllImageDTO
 
 	if err := c.ShouldBindJSON(&getAllImageDTO); err != nil {
-		writeResponse(c, http.StatusBadRequest, "invalid JSON")
+		invalidJSONResponse(c)
 		return
 	}
 
 	images, err := h.imageService.GetAll(context.Background(), getAllImageDTO.ID)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "")
+		writeErrorResponse(c, http.StatusInternalServerError, "failed to get photos", err.Error())
 		return
 	}
 
@@ -125,13 +129,13 @@ func (h *Handler) getAll(c *gin.Context) {
 
 			img, _, err := image.Decode(entityImage.Reader)
 			if err != nil {
-				writeResponse(c, http.StatusInternalServerError, "failed to decode image")
+				writeErrorResponse(c, http.StatusInternalServerError, "image", "failed to decode image")
 				return
 			}
 
 			var encodedImageBuffer bytes.Buffer
 			if err := jpeg.Encode(&encodedImageBuffer, img, nil); err != nil {
-				writeResponse(c, http.StatusInternalServerError, "failed to encode image")
+				writeErrorResponse(c, http.StatusInternalServerError, "image", "failed to encode image")
 				return
 			}
 
@@ -148,25 +152,25 @@ func (h *Handler) getBySize(c *gin.Context) {
 	var GetImageBySizeDTO dto.GetImageBySizeDTO
 
 	if err := c.ShouldBindJSON(&GetImageBySizeDTO); err != nil {
-		writeResponse(c, http.StatusBadRequest, "invalid JSON")
+		invalidJSONResponse(c)
 		return
 	}
 
 	entityImg, err := h.imageService.GetBySize(context.Background(), GetImageBySizeDTO.ID, GetImageBySizeDTO.Size)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, err.Error())
+		writeErrorResponse(c, http.StatusInternalServerError, "image (failed to make getBySize())", err.Error())
 		return
 	}
 
 	img, _, err := image.Decode(entityImg.Reader)
 	if err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to decode image")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "failed to decode image")
 		return
 	}
 
 	var encodedImageBuffer bytes.Buffer
 	if err := jpeg.Encode(&encodedImageBuffer, img, nil); err != nil {
-		writeResponse(c, http.StatusInternalServerError, "failed to encode image")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "failed to encode image")
 		return
 	}
 

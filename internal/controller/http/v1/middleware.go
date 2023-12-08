@@ -12,7 +12,7 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := getTokenFromRequest(c)
 		if err != nil {
-			writeResponse(c, http.StatusBadRequest, "Invalid or missing token in the Authorization header")
+			writeErrorResponse(c, http.StatusBadRequest, "AuthMiddleware", "Invalid or missing token in the Authorization header")
 			c.Abort()
 			return
 		}
@@ -30,14 +30,14 @@ func handleTokenValidationError(c *gin.Context, err error) {
 	if errors.As(err, &validationError) {
 		switch {
 		case validationError.Errors&jwt.ValidationErrorSignatureInvalid != 0:
-			writeResponse(c, http.StatusUnauthorized, "Invalid token signature")
+			writeErrorResponse(c, http.StatusUnauthorized, "JWT", "Invalid token signature")
 		case validationError.Errors&jwt.ValidationErrorExpired != 0:
-			writeResponse(c, http.StatusUnauthorized, "Token has expired")
+			writeErrorResponse(c, http.StatusUnauthorized, "JWT", "Token has expired")
 		default:
-			writeResponse(c, http.StatusInternalServerError, "Failed to parse token")
+			writeErrorResponse(c, http.StatusInternalServerError, "JWT", "Failed to parse token")
 		}
 	} else {
-		writeResponse(c, http.StatusInternalServerError, "Failed to parse token")
+		writeErrorResponse(c, http.StatusInternalServerError, "JWT", "Failed to parse token")
 	}
 }
 
