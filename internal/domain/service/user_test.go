@@ -7,6 +7,7 @@ import (
 	"github.com/nordew/UploadApp/internal/mocks"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/hasher"
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 )
@@ -101,7 +102,7 @@ func TestUserService_SignUp(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name: "Test_1",
@@ -113,7 +114,7 @@ func TestUserService_SignUp(t *testing.T) {
 					"john123",
 				},
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "Test_2",
@@ -125,10 +126,9 @@ func TestUserService_SignUp(t *testing.T) {
 					"jane456",
 				},
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
-			// TODO: Fix 3 test-case
 			name: "Test_3_InvalidInput",
 			args: args{
 				ctx: context.Background(),
@@ -138,7 +138,7 @@ func TestUserService_SignUp(t *testing.T) {
 					"password123",
 				},
 			},
-			wantErr: true,
+			wantErr: ErrValidationFailed,
 		},
 	}
 
@@ -167,9 +167,11 @@ func TestUserService_SignUp(t *testing.T) {
 				hmacSecret: "",
 			}
 
-			if err := s.SignUp(tt.args.ctx, tt.args.input); (err != nil) != tt.wantErr {
-				t.Errorf("SignUp() error = %v, wantErr %v", err, tt.wantErr)
+			err := s.SignUp(tt.args.ctx, tt.args.input)
+			if err != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
 			}
+			assert.Equal(t, err, tt.wantErr)
 		})
 	}
 

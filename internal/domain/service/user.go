@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
 
-	"github.com/nordew/UploadApp/internal/adapters/db/mongodb"
 	"github.com/nordew/UploadApp/internal/domain/entity"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/hasher"
@@ -13,13 +13,14 @@ import (
 
 var (
 	ErrEmailAlreadyExists = errors.New("email already exists")
+	ErrValidationFailed   = errors.New("invlid input")
 )
 
 // Users is the interface that defines methods for user-related operations, such as sign-up and sign-in.
 type Users interface {
 	// SignUp creates a new user account based on the provided sign-up input.
 	// It returns an error if the operation fails, including cases where the provided email already exists.
-	SignUp(ctx context.Context, input entity.SignUpInput) error
+	SignUp(ctx context.Context, input entity.SignUpInput) (string, error)
 
 	// SignIn retrieves a user from the database by email and password, and generates an access token.
 	// It returns the generated access token and an error if the operation fails or the user is not found.
@@ -27,14 +28,14 @@ type Users interface {
 }
 
 type UserService struct {
-	storage mongodb.UserStorage
+	storage psqldb.UserStorage
 	hasher  hasher.PasswordHasher
 	auth    auth.Authenticator
 
 	hmacSecret string
 }
 
-func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
+func NewUserService(storage psqldb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
 	return &UserService{
 		storage:    storage,
 		hasher:     hasher,
@@ -43,14 +44,14 @@ func NewUserService(storage mongodb.UserStorage, hasher hasher.PasswordHasher, a
 	}
 }
 
-func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) error {
-	hashedPassword, err := s.hasher.Hash(input.Password)
-	if err != nil {
-		return errors.Wrap(err, "failed to hash password")
+func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) (string, error) {
+	if err := input.Validate(); err != nil {
+		return "", ErrValidationFailed
 	}
 
-	if err := input.Validate(); err != nil {
-		return errors.Wrap(err, "invalid input")
+	hashedPassword, err := s.hasher.Hash(input.Password)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to hash password")
 	}
 
 	user := entity.User{
@@ -59,36 +60,38 @@ func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) erro
 		Password: hashedPassword,
 	}
 
-	if err := s.storage.Create(ctx, user); err != nil {
+	id, err := s.storage.Create(ctx, user)
+
+	if err != nil {
 		switch {
-		case errors.Is(err, mongodb.ErrDuplicateKey):
-			return fmt.Errorf("email already exists: %w", err)
-		case errors.Is(err, mongodb.ErrFailedToInsert):
-			return fmt.Errorf("failed to create user: %w", err)
+		case errors.Is(err, psqldb.ErrDuplicateKey):
+			return "", fmt.Errorf("email already exists: %w", err)
+		case errors.Is(err, psqldb.ErrFailedToInsert):
+			return "", fmt.Errorf("failed to create user: %w", err)
 		default:
-			return fmt.Errorf("unexpected error: %w", err)
+			return "", fmt.Errorf("failed to create user: %w", err)
 		}
 	}
 
-	return nil
+	return id, nil
 }
 
 func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (string, error) {
-	hashedPassword, err := s.hasher.Hash(input.Password)
-	if err != nil {
-		return "", err
+	if err := input.Validate(); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
 	}
 
-	if err := input.Validate(); err != nil {
+	hashedPassword, err := s.hasher.Hash(input.Password)
+	if err != nil {
 		return "", err
 	}
 
 	user, err := s.storage.GetByCredentials(ctx, input.Email, hashedPassword)
 	if err != nil {
 		switch {
-		case errors.Is(err, mongodb.ErrUserNotFound):
+		case errors.Is(err, psqldb.ErrUserNotFound):
 			return "", fmt.Errorf("authentication failed: %w", err)
-		case errors.Is(err, mongodb.ErrFailedToDecode):
+		case errors.Is(err, psqldb.ErrFailedToDecode):
 			return "", fmt.Errorf("authentication failed: %w", err)
 		default:
 			return "", fmt.Errorf("authentication failed: unexpected error: %w", err)
