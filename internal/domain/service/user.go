@@ -24,7 +24,9 @@ type Users interface {
 	// It returns the generated access token and an error if the operation fails or the user is not found.
 	SignIn(ctx context.Context, input entity.SignInInput) (string, string, error)
 
-	Refresh(ctx context.Context, refreshToken string) (string, error)
+	// Refresh generates new access and refresh tokens for an existing user session based on the provided ID and role.
+	// It returns the new access and refresh tokens, and an error if the operation fails.
+	Refresh(ctx context.Context, id string, role string) (string, string, error)
 }
 
 type UserService struct {
@@ -115,6 +117,19 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 	return accessToken, refreshToken, nil
 }
 
-func (s *UserService) Refresh(ctx context.Context, refreshToken string) (string, error) {
-	return "", nil
+func (s *UserService) Refresh(ctx context.Context, id string, role string) (string, string, error) {
+
+	accessToken, refreshToken, err := s.auth.GenerateTokens(&auth.GenerateTokenClaimsOptions{
+		UserId: id,
+		Role:   role,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := s.storage.RefreshSession(ctx, refreshToken, id); err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
 }
