@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
-	"time"
-
 	"github.com/nordew/UploadApp/internal/domain/entity"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/hasher"
@@ -30,21 +28,19 @@ type Users interface {
 }
 
 type UserService struct {
-	authService Auths
-	storage     psqldb.UserStorage
-	hasher      hasher.PasswordHasher
-	auth        auth.Authenticator
+	storage psqldb.UserStorage
+	hasher  hasher.PasswordHasher
+	auth    auth.Authenticator
 
 	hmacSecret string
 }
 
-func NewUserService(authService Auths, storage psqldb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
+func NewUserService(storage psqldb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
 	return &UserService{
-		authService: authService,
-		storage:     storage,
-		hasher:      hasher,
-		auth:        auth,
-		hmacSecret:  hmacSecret,
+		storage:    storage,
+		hasher:     hasher,
+		auth:       auth,
+		hmacSecret: hmacSecret,
 	}
 }
 
@@ -112,12 +108,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", "", err
 	}
 
-	if err := s.authService.Create(ctx, &entity.RefreshTokenSession{
-		UserID:       user.ID,
-		RefreshToken: refreshToken,
-		Role:         user.Role,
-		ExpiresAt:    time.Now().Add(24 * 30 * time.Hour),
-	}); err != nil {
+	if err := s.storage.CreateRefreshToken(context.Background(), refreshToken, user.ID); err != nil {
 		return "", "", err
 	}
 
