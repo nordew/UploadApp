@@ -3,6 +3,8 @@ package config
 import "github.com/spf13/viper"
 
 type ConfigInfo struct {
+	ServerPort string
+
 	Salt   string
 	Secret string
 
