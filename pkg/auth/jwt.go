@@ -98,14 +98,14 @@ func (s *jwtAuthenticator) ParseToken(accessToken string) (*ParseTokenClaimsOutp
 
 	claims := token.Claims.(jwt.MapClaims)
 
-	username := claims["username"]
-	if username == nil {
+	role := claims["role"]
+	if role == nil {
 		return nil, fmt.Errorf("token is not valid")
 	}
-	userId := claims["userId"]
-	if userId == nil {
+	sub := claims["sub"]
+	if sub == nil {
 		return nil, fmt.Errorf("token is not valid")
 	}
 
-	return &ParseTokenClaimsOutput{UserId: fmt.Sprint(userId), Username: fmt.Sprint(username)}, nil
+	return &ParseTokenClaimsOutput{Sub: fmt.Sprint(sub), Role: fmt.Sprint(role)}, nil
 }
