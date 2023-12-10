@@ -15,18 +15,16 @@ import (
 type Handler struct {
 	imageService service.Images
 	userService  service.Users
-	authService  service.Auths
 	logger       *slog.Logger
 	channel      *amqp.Channel
 	auth         auth.Authenticator
 	payment      payment.Payment
 }
 
-func NewHandler(userService service.Users, imageService service.Images, authService service.Auths, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator, payment payment.Payment) *Handler {
+func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator, payment payment.Payment) *Handler {
 	return &Handler{
 		userService:  userService,
 		imageService: imageService,
-		authService:  authService,
 		logger:       logger,
 		channel:      channel,
 		auth:         auth,
@@ -41,7 +39,7 @@ func (h *Handler) Init() *gin.Engine {
 	{
 		auth.POST("/sign-up", h.signUp)
 		auth.GET("/sign-in", h.signIn)
-		auth.GET("/refresh", h.refresh)
+		//auth.GET("/refresh", h.refresh)
 	}
 
 	image := router.Group("/images")
