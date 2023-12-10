@@ -7,25 +7,6 @@ import (
 	"net/http"
 )
 
-func (h *Handler) refresh(c *gin.Context) {
-	cookie, err := c.Cookie("refresh-token")
-	if err != nil {
-		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
-		return
-	}
-
-	accessToken, refreshToken, err := h.authService.RefreshTokens(context.Background(), cookie)
-	if err != nil {
-		writeErrorResponse(c, http.StatusInternalServerError, "failed to generate new tokens", err.Error())
-		return
-	}
-
-	c.SetCookie("access_token", accessToken, 0, "/", "", false, true)
-	c.SetCookie("refresh_token", refreshToken, 0, "/", "", false, true)
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
 func (h *Handler) signUp(c *gin.Context) {
 	var input entity.SignUpInput
 
@@ -54,10 +35,34 @@ func (h *Handler) signIn(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.userService.SignIn(context.TODO(), input)
+	accessToken, refreshToken, err := h.userService.SignIn(context.Background(), input)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to SignIn", err.Error())
 		h.logger.Error(err.Error())
+		return
+	}
+
+	c.SetCookie("access_token", accessToken, 0, "/", "", false, true)
+	c.SetCookie("refresh_token", refreshToken, 0, "/", "", false, true)
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (h *Handler) refresh(c *gin.Context) {
+	cookie, err := c.Cookie("refresh_token")
+	if err != nil {
+		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
+		return
+	}
+
+	claims, err := h.auth.ParseToken(cookie)
+	if err != nil {
+		writeErrorResponse(c, http.StatusUnauthorized, "Access error", err.Error())
+	}
+
+	accessToken, refreshToken, err := h.userService.Refresh(context.Background(), claims.Sub, claims.Role)
+	if err != nil {
+		writeErrorResponse(c, http.StatusInternalServerError, "failed to generate new tokens", err.Error())
 		return
 	}
 
