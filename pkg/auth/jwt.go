@@ -15,20 +15,20 @@ func NewAuth() Authenticator {
 	return &jwtAuthenticator{}
 }
 
-type MyCustomClaims struct {
-	Username string `json:"username"`
-	UserId   string `json:"userId"`
+type TokenClaims struct {
+	UserId string `json:"sub"`
+	Role   string `json:"role""`
 	jwt.RegisteredClaims
 }
 
-func (s *jwtAuthenticator) GenerateToken(tokenClaims *GenerateTokenClaimsOptions) (string, error) {
+func (s *jwtAuthenticator) GenerateTokens(options *GenerateTokenClaimsOptions) (string, string, error) {
 	mySigningKey := []byte(s.signKey)
 
-	claims := MyCustomClaims{
-		Username: tokenClaims.UserName,
-		UserId:   tokenClaims.UserId,
+	claims := TokenClaims{
+		UserId: options.UserId,
+		Role:   options.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(560 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "upload-api",
@@ -37,14 +37,47 @@ func (s *jwtAuthenticator) GenerateToken(tokenClaims *GenerateTokenClaimsOptions
 			Audience:  []string{"upload"},
 		},
 	}
+
+	refreshToken, err := s.GenerateRefreshToken(options.UserId, options.Role)
+	if err != nil {
+		return "", "", err
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	signedToken, err := token.SignedString(mySigningKey)
+	accessToken, err := token.SignedString(mySigningKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func (s *jwtAuthenticator) GenerateRefreshToken(id string, role string) (string, error) {
+	mySigningKey := []byte(s.signKey)
+
+	claims := TokenClaims{
+		UserId: id,
+		Role:   role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+			Issuer:    "upload-api",
+			Subject:   "client",
+			ID:        uuid.NewString(),
+			Audience:  []string{"upload"},
+		},
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	signedRefreshToken, err := refreshToken.SignedString(mySigningKey)
 	if err != nil {
 		return "", err
 	}
 
-	return signedToken, nil
+	return signedRefreshToken, nil
 }
 
 func (s *jwtAuthenticator) ParseToken(accessToken string) (*ParseTokenClaimsOutput, error) {
