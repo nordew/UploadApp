@@ -7,6 +7,7 @@ import (
 	"github.com/nordew/UploadApp/internal/config"
 	v1 "github.com/nordew/UploadApp/internal/controller/http/v1"
 	controller "github.com/nordew/UploadApp/internal/controller/rabbit"
+	"github.com/nordew/UploadApp/internal/controller/server"
 	"github.com/nordew/UploadApp/internal/domain/service"
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/client/minio"
@@ -18,21 +19,14 @@ import (
 	"github.com/stripe/stripe-go/v76"
 )
 
-const (
-	PORT = ":8080"
-)
-
 func main() {
-	// Logging
 	logger := logging.NewLogger()
 
-	// Config
 	cfg, err := config.NewConfig("main", "yml", "./configs")
 	if err != nil {
 		logger.Error("failed to create config: ", err)
 	}
 
-	// DB
 	postgresClient, err := psql.NewPostgres(&psql.ConnectionInfo{
 		Host:     cfg.PGHost,
 		Port:     cfg.PGPort,
@@ -53,19 +47,17 @@ func main() {
 		return
 	}
 
-	// Storages
 	userStorage := psqldb.NewUserStorage(postgresClient)
+	authStorage := psqldb.NewAuthStorage(postgresClient)
 	imageStorage := miniodb.NewImageStorage(minioClient, "images")
 
-	// Pkg
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
 	authenticator := auth.NewAuth()
 
-	// Services
-	userService := service.NewUserService(userStorage, hasher, authenticator, cfg.Secret)
 	imageService := service.NewImageService(imageStorage)
+	authService := service.NewAuthService(authStorage)
+	userService := service.NewUserService(authService, userStorage, hasher, authenticator, cfg.Secret)
 
-	// Queue
 	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
 	if err != nil {
 		logger.Error("failed to connect to rabbit: ", err)
@@ -89,21 +81,10 @@ func main() {
 		logger.Error("failed to declare a queue")
 	}
 
-	// Stripe
 	stripe.Key = cfg.StripeKey
 	stripePayment := payment.NewPayement()
 
-	// Create a context that can be canceled to signal shutdown
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Handle OS signals to gracefully shutdown
-	//go func() {
-	//	sigCh := make(chan os.Signal, 1)
-	//	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	//	<-sigCh
-	//	logger.Info("Received shutdown signal")
-	//	cancel()
-	//}()
 
 	consumer := controller.NewConsumer(channel, q, logger, imageService)
 
@@ -113,26 +94,15 @@ func main() {
 		}
 	}()
 
-	// Handler
-	go func() {
-		handler := v1.NewHandler(userService, imageService, logger, channel, authenticator, stripePayment)
+	handler := v1.NewHandler(userService, imageService, authService, logger, channel, authenticator, stripePayment)
+	router := handler.Init()
 
-		if err := handler.Init(PORT); err != nil {
-			logger.Error("failed to init router: ", err)
+	go func() {
+		if err := server.Run(router, cfg.ServerPort); err != nil {
+			logger.Error("failed to run router")
 			cancel()
 		}
 	}()
 
 	select {}
-	//
-	//<-ctx.Done()
-	//
-	//logger.Info("Shutting down...")
-	//
-	//// Close RabbitMQ connection
-	//if err := conn.Close(); err != nil {
-	//	logger.Error("failed to close RabbitMQ connection: ", err)
-	//}
-	//
-	//logger.Info("Shutdown complete.")
 }
