@@ -17,19 +17,14 @@ func (h *Handler) signUp(c *gin.Context) {
 		return
 	}
 
-	id, err := h.userService.SignUp(context.TODO(), input)
-	if err != nil {
+	if err := h.userService.SignUp(context.TODO(), input); err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to SignUp", err.Error())
 		h.logger.Debug(err.Error())
 		return
 	}
 
-	response := gin.H{
-		"id": id,
-	}
-
-	writeResponse(c, http.StatusCreated, response)
-	h.logger.Debug("signUp: user was created ")
+	writeResponse(c, http.StatusCreated, gin.H{})
+	h.logger.Debug("signUp: user was created")
 }
 
 func (h *Handler) signIn(c *gin.Context) {
@@ -37,16 +32,19 @@ func (h *Handler) signIn(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		invalidJSONResponse(c)
-		h.logger.Error("signUp: failed to parse data ", err)
+		h.logger.Error("signIn: failed to parse data ", err)
 		return
 	}
 
-	acccesToken, err := h.userService.SignIn(context.TODO(), input)
+	accessToken, refreshToken, err := h.userService.SignIn(context.TODO(), input)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to SignIn", err.Error())
 		h.logger.Error(err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": acccesToken})
+	c.SetCookie("access_token", accessToken, 0, "/", "", false, true)
+	c.SetCookie("refresh_token", refreshToken, 0, "/", "", false, true)
+
+	c.JSON(http.StatusOK, gin.H{})
 }
