@@ -39,7 +39,7 @@ func (h *Handler) Init() *gin.Engine {
 	{
 		auth.POST("/sign-up", h.signUp)
 		auth.GET("/sign-in", h.signIn)
-		//auth.GET("/refresh", h.refresh)
+		auth.GET("/refresh", h.refresh)
 	}
 
 	image := router.Group("/images")
