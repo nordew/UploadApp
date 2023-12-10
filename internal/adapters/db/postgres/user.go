@@ -18,12 +18,17 @@ var (
 	ErrDuplicateKey    = errors.New("user with this email already exists")
 )
 
+// UserStorage is an interface for user data storage operations.
 type UserStorage interface {
 	// Create creates a new user in the database.
 	Create(ctx context.Context, user entity.User) error
-	// GetByCredentials retrieves a user from the database by email and password.
+
+	// GetByCredentials retrieves a user from the database by email.
 	// It returns an error if the operation fails or the user is not found.
 	GetByCredentials(ctx context.Context, email string) (*entity.User, error)
+
+	// CreateRefreshToken updates the refresh token for a user with the specified ID.
+	CreateRefreshToken(ctx context.Context, token string, id string) error
 }
 
 type userStorage struct {
@@ -31,7 +36,9 @@ type userStorage struct {
 }
 
 func NewUserStorage(db *sql.DB) *userStorage {
-	return &userStorage{db}
+	return &userStorage{
+		db: db,
+	}
 }
 
 func IsDuplicateKeyError(err error) bool {
@@ -65,7 +72,7 @@ func (s *userStorage) GetByCredentials(ctx context.Context, email string) (*enti
 	var user entity.User
 
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, email, password, photosUploaded, role
+		SELECT id, name, email, password, photos_uploaded, role
 		FROM users
 		WHERE email = $1`,
 		email)
@@ -78,4 +85,13 @@ func (s *userStorage) GetByCredentials(ctx context.Context, email string) (*enti
 	}
 
 	return &user, nil
+}
+
+func (s *userStorage) CreateRefreshToken(ctx context.Context, token string, id string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2;", token, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
