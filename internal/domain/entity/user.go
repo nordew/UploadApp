@@ -11,5 +11,6 @@ type User struct {
 	Password       string
 	PhotosUploaded int
 	Role           string
+	refresh_token  string
 	RegisteredAt   time.Time
 }
