@@ -17,6 +17,6 @@ type GenerateTokenClaimsOptions struct {
 }
 
 type ParseTokenClaimsOutput struct {
-	UserId   string
-	Username string
+	Sub  string
+	Role string
 }
