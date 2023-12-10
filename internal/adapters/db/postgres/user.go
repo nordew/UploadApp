@@ -20,10 +20,10 @@ var (
 
 type UserStorage interface {
 	// Create creates a new user in the database.
-	Create(ctx context.Context, user entity.User) (string, error)
+	Create(ctx context.Context, user entity.User) error
 	// GetByCredentials retrieves a user from the database by email and password.
 	// It returns an error if the operation fails or the user is not found.
-	GetByCredentials(ctx context.Context, email, password string) (*entity.User, error)
+	GetByCredentials(ctx context.Context, email string) (*entity.User, error)
 }
 
 type userStorage struct {
@@ -39,10 +39,10 @@ func IsDuplicateKeyError(err error) bool {
 	return ok && pqErr.Code == "23505"
 }
 
-func (s *userStorage) Create(ctx context.Context, user entity.User) (string, error) {
+func (s *userStorage) Create(ctx context.Context, user entity.User) error {
 	userId, err := uuid.NewUUID()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	_, err = s.db.ExecContext(ctx, `
@@ -52,25 +52,25 @@ func (s *userStorage) Create(ctx context.Context, user entity.User) (string, err
 
 	if err != nil {
 		if IsDuplicateKeyError(err) {
-			return "", fmt.Errorf("%w: %v", ErrDuplicateKey, err)
+			return fmt.Errorf("%w: %v", ErrDuplicateKey, err)
 		}
 
-		return "", fmt.Errorf("%w: %v", ErrFailedToInsert, err)
+		return fmt.Errorf("%w: %v", ErrFailedToInsert, err)
 	}
 
-	return userId.String(), nil
+	return nil
 }
 
-func (s *userStorage) GetByCredentials(ctx context.Context, email, password string) (*entity.User, error) {
+func (s *userStorage) GetByCredentials(ctx context.Context, email string) (*entity.User, error) {
 	var user entity.User
 
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, email, password
+		SELECT id, name, email, password, photosUploaded, role
 		FROM users
-		WHERE email = $1 AND password = $2`,
-		email, password)
+		WHERE email = $1`,
+		email)
 
-	if err := row.Scan(&user.ID, &user.Email, &user.Password); err != nil {
+	if err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.PhotosUploaded, &user.Role); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: user not found for email %s", ErrUserNotFound, email)
 		}
