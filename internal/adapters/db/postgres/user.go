@@ -29,6 +29,10 @@ type UserStorage interface {
 
 	// CreateRefreshToken updates the refresh token for a user with the specified ID.
 	CreateRefreshToken(ctx context.Context, token string, id string) error
+
+	// RefreshSession updates the refresh token for a user with the specified oldToken to a newToken.
+	// It returns an error if the operation fails or the oldToken is not found.
+	RefreshSession(ctx context.Context, oldToken string, newToken string) error
 }
 
 type userStorage struct {
@@ -91,6 +95,15 @@ func (s *userStorage) CreateRefreshToken(ctx context.Context, token string, id s
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2;", token, id)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *userStorage) RefreshSession(ctx context.Context, oldToken string, newToken string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE refresh_token = $2;", oldToken, newToken)
+	if err != nil {
+		return fmt.Errorf("no such refresh token")
 	}
 
 	return nil
