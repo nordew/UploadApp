@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
 	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
 	"github.com/nordew/UploadApp/internal/config"
@@ -48,15 +49,13 @@ func main() {
 	}
 
 	userStorage := psqldb.NewUserStorage(postgresClient)
-	authStorage := psqldb.NewAuthStorage(postgresClient)
 	imageStorage := miniodb.NewImageStorage(minioClient, "images")
 
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
 	authenticator := auth.NewAuth()
 
 	imageService := service.NewImageService(imageStorage)
-	authService := service.NewAuthService(authStorage)
-	userService := service.NewUserService(authService, userStorage, hasher, authenticator, cfg.Secret)
+	userService := service.NewUserService(userStorage, hasher, authenticator, cfg.Secret)
 
 	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
 	if err != nil {
@@ -77,8 +76,9 @@ func main() {
 		false,   // no-wait
 		nil,     // arguments
 	)
+
 	if err != nil {
-		logger.Error("failed to declare a queue")
+		logger.Error("failed to declare queue")
 	}
 
 	stripe.Key = cfg.StripeKey
@@ -94,7 +94,7 @@ func main() {
 		}
 	}()
 
-	handler := v1.NewHandler(userService, imageService, authService, logger, channel, authenticator, stripePayment)
+	handler := v1.NewHandler(userService, imageService, logger, channel, authenticator, stripePayment)
 	router := handler.Init()
 
 	go func() {
