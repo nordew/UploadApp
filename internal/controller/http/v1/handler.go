@@ -42,6 +42,12 @@ func (h *Handler) Init() *gin.Engine {
 		auth.GET("/refresh", h.refresh)
 	}
 
+	profile := router.Group("profile")
+	profile.Use(h.AuthMiddleware())
+	{
+		profile.GET("/:id", h.getUser)
+	}
+
 	image := router.Group("/images")
 	image.Use(h.AuthMiddleware())
 	{
@@ -74,4 +80,20 @@ func writeErrorResponse(c *gin.Context, statusCode int, error string, errorDesc 
 	}
 
 	c.JSON(statusCode, response)
+}
+
+func (h *Handler) getRefreshTokenFromCookie(c *gin.Context) (*auth.ParseTokenClaimsOutput, error) {
+	cookie, err := c.Cookie("refresh_token")
+	if err != nil {
+		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
+		return nil, err
+	}
+
+	claims, err := h.auth.ParseToken(cookie)
+	if err != nil {
+		writeErrorResponse(c, http.StatusUnauthorized, "Access error", err.Error())
+		return nil, err
+	}
+
+	return claims, nil
 }
