@@ -49,16 +49,7 @@ func (h *Handler) signIn(c *gin.Context) {
 }
 
 func (h *Handler) refresh(c *gin.Context) {
-	cookie, err := c.Cookie("refresh_token")
-	if err != nil {
-		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
-		return
-	}
-
-	claims, err := h.auth.ParseToken(cookie)
-	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Access error", err.Error())
-	}
+	claims, err := h.getRefreshTokenFromCookie(c)
 
 	accessToken, refreshToken, err := h.userService.Refresh(context.Background(), claims.Sub, claims.Role)
 	if err != nil {
