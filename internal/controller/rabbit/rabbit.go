@@ -42,20 +42,23 @@ func (c *Consumer) Consume(ctx context.Context) error {
 	}
 
 	for d := range msgs {
-		var imgBytes []byte
-		if err := json.Unmarshal(d.Body, &imgBytes); err != nil {
+		var message struct {
+			UserID    string `json:"userId"`
+			ImageData []byte `json:"imageData"`
+		}
+
+		if err := json.Unmarshal(d.Body, &message); err != nil {
 			c.logger.Error("Unmarshal() error: ", err)
 			return err
 		}
 
-		img, _, err := image.Decode(bytes.NewReader(imgBytes))
+		img, _, err := image.Decode(bytes.NewReader(message.ImageData))
 		if err != nil {
 			c.logger.Error("Decode() error: ", err)
 			return err
 		}
 
-		_, err = c.imageService.Upload(ctx, img)
-		if err != nil {
+		if err := c.imageService.Upload(ctx, img, message.UserID); err != nil {
 			c.logger.Error("Upload() error: ", err)
 			return err
 		}
