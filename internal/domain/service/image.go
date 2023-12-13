@@ -25,7 +25,7 @@ type Images interface {
 	// Upload uploads the given image and returns a unique identifier for the uploaded image.
 	// The image is processed to create multiple versions with different qualities.
 	// It returns the generated identifier and an error if the upload fails.
-	Upload(ctx context.Context, image image.Image) (string, error)
+	Upload(ctx context.Context, image image.Image, userId string) error
 
 	// GetAll retrieves all images associated with the specified identifier.
 	// It returns a slice of Image entities and an error if the retrieval fails.
@@ -51,10 +51,10 @@ func NewImageService(storage miniodb.ImageStorage) *ImageService {
 	}
 }
 
-func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, error) {
+func (s *ImageService) Upload(ctx context.Context, image image.Image, userId string) error {
 	imagesRendered, quality, err := ImageQuality(image)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	generatedId := uuid.NewString()
@@ -62,12 +62,12 @@ func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, e
 	for i, v := range imagesRendered {
 		buf := new(bytes.Buffer)
 		if err := jpeg.Encode(buf, v, nil); err != nil {
-			return "", fmt.Errorf("failed to encode image")
+			return fmt.Errorf("failed to encode image")
 		}
 
 		reader := bytes.NewReader(buf.Bytes())
 
-		idFormatted := fmt.Sprintf("%s_%d.jpg", generatedId, quality[i])
+		idFormatted := fmt.Sprintf("%s_%d_%s.jpeg", generatedId, quality[i], userId)
 
 		resImage := entity.Image{
 			Name:   idFormatted,
@@ -77,11 +77,11 @@ func (s *ImageService) Upload(ctx context.Context, image image.Image) (string, e
 
 		if err := s.storage.Upload(ctx, resImage); err != nil {
 			log.Printf("upload error: %s", err)
-			return "", err
+			return err
 		}
 	}
 
-	return generatedId, nil
+	return nil
 }
 
 func (s *ImageService) GetAll(ctx context.Context, id string) ([]entity.Image, error) {
