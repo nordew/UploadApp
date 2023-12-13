@@ -28,6 +28,12 @@ type ImageStorage interface {
 	// GetBySize retrieves an image of the specified size associated with the given identifier from the storage service.
 	// It returns the requested Image entity and an error if the retrieval fails.
 	GetBySize(ctx context.Context, id string, size int) (*entity.Image, error)
+
+	// DeleteAllImages deletes all images associated with the specified identifier.
+	// The identifier is used to uniquely identify the set of images to delete.
+	// It returns an error if the deletion operation fails.
+	// The error may indicate issues with object removal or connectivity with the storage service.
+	DeleteAllImages(ctx context.Context, id, quality string) error
 }
 
 type imageStorage struct {
@@ -110,4 +116,14 @@ func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*ent
 	}
 
 	return &preparedImage, nil
+}
+
+func (s *imageStorage) DeleteAllImages(ctx context.Context, id, quality string) error {
+	connStr := fmt.Sprintf("%s_%s.jpeg", id, quality)
+
+	if err := s.db.RemoveObject(ctx, s.bucketName, connStr, minio.RemoveObjectOptions{}); err != nil {
+		return err
+	}
+
+	return nil
 }
