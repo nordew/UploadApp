@@ -26,7 +26,15 @@ type Users interface {
 
 	// Refresh generates new access and refresh tokens for an existing user session based on the provided ID and role.
 	// It returns the new access and refresh tokens, and an error if the operation fails.
-	Refresh(ctx context.Context, id string, role string) (string, string, error)
+	Refresh(ctx context.Context, id, role string) (string, string, error)
+
+	GetCredantials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error)
+
+	// ChangePassword updates the user's password in the system.
+	// hashes the old and new passwords, and updates the password in the storage.
+	// If the operation is successful, it returns nil. Otherwise, it returns an error.
+	// The error may indicate validation failures, hashing errors, or storage-related issues
+	ChangePassword(ctx context.Context, id, old, new string) error
 }
 
 type UserService struct {
@@ -86,7 +94,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", "", err
 	}
 
-	user, err := s.storage.GetByCredentials(ctx, input.Email)
+	user, err := s.storage.GetByCredentials(ctx, input.Email, true)
 	if err != nil {
 		switch {
 		case errors.Is(err, psqldb.ErrUserNotFound):
@@ -117,8 +125,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 	return accessToken, refreshToken, nil
 }
 
-func (s *UserService) Refresh(ctx context.Context, id string, role string) (string, string, error) {
-
+func (s *UserService) Refresh(ctx context.Context, id, role string) (string, string, error) {
 	accessToken, refreshToken, err := s.auth.GenerateTokens(&auth.GenerateTokenClaimsOptions{
 		UserId: id,
 		Role:   role,
@@ -132,4 +139,22 @@ func (s *UserService) Refresh(ctx context.Context, id string, role string) (stri
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *UserService) GetCredantials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error) {
+	return s.storage.GetByCredentials(ctx, identifier, byEmail)
+}
+
+func (s *UserService) ChangePassword(ctx context.Context, email, old, new string) error {
+	hashedOldPassword, err := s.hasher.Hash(old)
+	if err != nil {
+		return fmt.Errorf("failed to hash old paasword")
+	}
+
+	hashedNewPassword, err := s.hasher.Hash(new)
+	if err != nil {
+		return fmt.Errorf("failed to hash new paasword")
+	}
+
+	return s.storage.ChangePassword(ctx, email, hashedOldPassword, hashedNewPassword)
 }
