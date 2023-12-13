@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *Handler) upload(c *gin.Context) {
+func (h *Handler) uploadImage(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to parse form")
@@ -103,7 +103,7 @@ func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
 	return nil
 }
 
-func (h *Handler) getAll(c *gin.Context) {
+func (h *Handler) getAllImages(c *gin.Context) {
 	var getAllImageDTO dto.GetAllImageDTO
 
 	if err := c.ShouldBindJSON(&getAllImageDTO); err != nil {
@@ -146,6 +146,16 @@ func (h *Handler) getAll(c *gin.Context) {
 	wg.Wait()
 
 	c.AbortWithStatus(http.StatusOK)
+}
+
+func (h *Handler) deleteAllImages(c *gin.Context) {
+	name := c.Param("name")
+
+	if err := h.imageService.DeleteAllImages(context.Background(), name); err != nil {
+		writeErrorResponse(c, http.StatusInternalServerError, "failed to delete image", err.Error())
+	}
+
+	writeResponse(c, http.StatusOK, gin.H{})
 }
 
 func (h *Handler) getBySize(c *gin.Context) {
