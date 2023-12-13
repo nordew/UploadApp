@@ -23,16 +23,21 @@ type UserStorage interface {
 	// Create creates a new user in the database.
 	Create(ctx context.Context, user entity.User) error
 
-	// GetByCredentials retrieves a user from the database by email.
+	// GetByCredentials retrieves a user from the database based on either email or ID.
 	// It returns an error if the operation fails or the user is not found.
-	GetByCredentials(ctx context.Context, email string) (*entity.User, error)
+	// The 'identifier' parameter is used for both email and ID, and 'byEmail' indicates the type of identifier.
+	GetByCredentials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error)
 
 	// CreateRefreshToken updates the refresh token for a user with the specified ID.
-	CreateRefreshToken(ctx context.Context, token string, id string) error
+	CreateRefreshToken(ctx context.Context, token, id string) error
 
 	// RefreshSession updates the refresh token for a user with the specified oldToken to a newToken.
 	// It returns an error if the operation fails or the oldToken is not found.
-	RefreshSession(ctx context.Context, oldToken string, newToken string) error
+	RefreshSession(ctx context.Context, oldToken, newToken string) error
+
+	// ChangePassword changes the user password
+	// It returns an error if the operation fails or password stored in db doesn't match with old one.
+	ChangePassword(ctx context.Context, email, old, new string) error
 }
 
 type userStorage struct {
@@ -72,18 +77,34 @@ func (s *userStorage) Create(ctx context.Context, user entity.User) error {
 	return nil
 }
 
-func (s *userStorage) GetByCredentials(ctx context.Context, email string) (*entity.User, error) {
+func (s *userStorage) GetByCredentials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error) {
 	var user entity.User
 
-	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, email, password, photos_uploaded, role
-		FROM users
-		WHERE email = $1`,
-		email)
+	var query string
+	var args []interface{}
+
+	if byEmail {
+		query = `
+			SELECT id, name, email, password, photos_uploaded, role
+			FROM users
+			WHERE email = $1
+		`
+		args = append(args, identifier)
+	} else {
+		query = `
+			SELECT id, name, email, password, photos_uploaded, role
+			FROM users
+			WHERE id = $1
+		`
+
+		args = append(args, identifier)
+	}
+
+	row := s.db.QueryRowContext(ctx, query, args...)
 
 	if err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.PhotosUploaded, &user.Role); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: user not found for email %s", ErrUserNotFound, email)
+			return nil, fmt.Errorf("%w: user not found for identifier %s", ErrUserNotFound, identifier)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrFailedToDecode, err)
 	}
@@ -104,6 +125,27 @@ func (s *userStorage) RefreshSession(ctx context.Context, oldToken string, newTo
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE refresh_token = $2;", oldToken, newToken)
 	if err != nil {
 		return fmt.Errorf("no such refresh token")
+	}
+
+	return nil
+}
+
+func (s *userStorage) ChangePassword(ctx context.Context, email, old, new string) error {
+	var dbPassword string
+
+	row := s.db.QueryRowContext(ctx, "SELECT password FROM users WHERE email = $1", email)
+
+	if err := row.Scan(&dbPassword); err != nil {
+		return err
+	}
+
+	if dbPassword != old {
+		return fmt.Errorf("invalid old password")
+	}
+
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET password = $1 WHERE email = $2", new, email)
+	if err != nil {
+		return err
 	}
 
 	return nil
