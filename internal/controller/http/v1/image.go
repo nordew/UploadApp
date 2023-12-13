@@ -31,8 +31,13 @@ func (h *Handler) uploadImage(c *gin.Context) {
 		return
 	}
 
+	claims, err := h.getAccessTokenFromCookie(c)
+	if err != nil {
+		writeErrorResponse(c, http.StatusUnauthorized, "Auth", "failed to get access token")
+	}
+
 	for _, file := range files {
-		if err := h.processFile(c, file); err != nil {
+		if err := h.processFile(c, file, claims.Sub); err != nil {
 			return
 		}
 	}
@@ -44,7 +49,7 @@ func (h *Handler) uploadImage(c *gin.Context) {
 	writeResponse(c, http.StatusCreated, response)
 }
 
-func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader) error {
+func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader, userId string) error {
 	openedFile, err := file.Open()
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to open file")
@@ -72,17 +77,25 @@ func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader) error 
 
 	imgBytes := imgBytesBuffer.Bytes()
 
-	if err := h.publishImageToQueue(c, imgBytes); err != nil {
+	if err := h.publishImageToQueue(c, imgBytes, userId); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
-	marshalledImg, err := json.Marshal(&imgBytes)
+func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte, userId string) error {
+	message := struct {
+		UserID    string `json:"userId"`
+		ImageData []byte `json:"imageData"`
+	}{
+		UserID:    userId,
+		ImageData: imgBytes,
+	}
+
+	marshalledMsg, err := json.Marshal(&message)
 	if err != nil {
-		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to marshall image")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to marshal message")
 		return err
 	}
 
@@ -93,10 +106,11 @@ func (h *Handler) publishImageToQueue(c *gin.Context, imgBytes []byte) error {
 		false,
 		amqp.Publishing{
 			ContentType: "application/json",
-			Body:        marshalledImg,
-		})
+			Body:        marshalledMsg,
+		},
+	)
 	if err != nil {
-		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to add image to queue")
+		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to add message to queue")
 		return err
 	}
 
