@@ -34,6 +34,11 @@ type Images interface {
 	// GetBySize retrieves an image of the specified size associated with the given identifier.
 	// It returns the requested Image entity and an error if the retrieval fails.
 	GetBySize(ctx context.Context, id string, size int) (*entity.Image, error)
+
+	// DeleteAllImages deletes all versions of images associated with the specified identifier.
+	// It removes images with different qualities (e.g., different compression levels) to clean up storage.
+	// The method takes a context and an identifier as input and returns an error if the deletion fails.
+	DeleteAllImages(ctx context.Context, id string) error
 }
 
 type ImageService struct {
@@ -85,6 +90,18 @@ func (s *ImageService) GetAll(ctx context.Context, id string) ([]entity.Image, e
 
 func (s *ImageService) GetBySize(ctx context.Context, id string, size int) (*entity.Image, error) {
 	return s.storage.GetBySize(ctx, id, size)
+}
+
+func (s *ImageService) DeleteAllImages(ctx context.Context, id string) error {
+	quality := []string{"100", "75", "50", "25"}
+
+	for _, v := range quality {
+		if err := s.storage.DeleteAllImages(ctx, id, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ImageQuality(img image.Image) ([]image.Image, []int, error) {
