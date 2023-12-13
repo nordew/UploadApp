@@ -56,9 +56,10 @@ func (h *Handler) Init() *gin.Engine {
 	image := router.Group("/images")
 	image.Use(h.AuthMiddleware())
 	{
-		image.POST("/upload", h.upload)
-		image.GET("/get-all", h.getAll)
+		image.POST("/upload", h.uploadImage)
+		image.GET("/get-all", h.getAllImages)
 		image.GET("/get", h.getBySize)
+		image.DELETE("/delete/:name", h.deleteAllImages)
 	}
 
 	payment := router.Group("/payment")
