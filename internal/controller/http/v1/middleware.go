@@ -5,21 +5,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"net/http"
-	"strings"
 )
 
 func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := getTokenFromRequest(c)
+		cookie, err := c.Cookie("access_token")
 		if err != nil {
-			writeErrorResponse(c, http.StatusBadRequest, "AuthMiddleware", "Invalid or missing token in the Authorization header")
+			writeErrorResponse(c, http.StatusUnauthorized, "Middleware", "no access token")
 			c.Abort()
 			return
 		}
 
-		_, err = h.auth.ParseToken(token)
+		_, err = h.auth.ParseToken(cookie)
 		if err != nil {
 			handleTokenValidationError(c, err)
+			c.Abort()
 			return
 		}
 	}
@@ -39,22 +39,4 @@ func handleTokenValidationError(c *gin.Context, err error) {
 	} else {
 		writeErrorResponse(c, http.StatusInternalServerError, "JWT", "Failed to parse token")
 	}
-}
-
-func getTokenFromRequest(c *gin.Context) (string, error) {
-	header := c.GetHeader("Authorization")
-	if header == "" {
-		return "", errors.New("empty or missing Authorization header")
-	}
-
-	headerParts := strings.Split(header, " ")
-	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
-		return "", errors.New("invalid Authorization header format")
-	}
-
-	if len(headerParts[1]) == 0 {
-		return "", errors.New("empty token")
-	}
-
-	return headerParts[1], nil
 }
