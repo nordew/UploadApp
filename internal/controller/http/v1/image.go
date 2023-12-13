@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/nordew/UploadApp/internal/controller/http/dto"
@@ -18,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *Handler) uploadImage(c *gin.Context) {
+func (h *Handler) upload(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "image", "Failed to parse form")
@@ -34,16 +35,22 @@ func (h *Handler) uploadImage(c *gin.Context) {
 	claims, err := h.getAccessTokenFromCookie(c)
 	if err != nil {
 		writeErrorResponse(c, http.StatusUnauthorized, "Auth", "failed to get access token")
+		return
 	}
 
 	for _, file := range files {
+		if !strings.HasSuffix(strings.ToLower(file.Filename), ".jpeg") {
+			writeErrorResponse(c, http.StatusBadRequest, "image", "Only .jpeg files are allowed")
+			return
+		}
+
 		if err := h.processFile(c, file, claims.Sub); err != nil {
 			return
 		}
 	}
 
 	response := gin.H{
-		"success": "adeed to queue",
+		"success": "added to queue",
 	}
 
 	writeResponse(c, http.StatusCreated, response)
@@ -125,6 +132,8 @@ func (h *Handler) getAllImages(c *gin.Context) {
 		return
 	}
 
+	h.authorizeImageAccess(c, getAllImageDTO.ID)
+
 	images, err := h.imageService.GetAll(context.Background(), getAllImageDTO.ID)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to get photos", err.Error())
@@ -165,6 +174,8 @@ func (h *Handler) getAllImages(c *gin.Context) {
 func (h *Handler) deleteAllImages(c *gin.Context) {
 	name := c.Param("name")
 
+	h.authorizeImageAccess(c, name)
+
 	if err := h.imageService.DeleteAllImages(context.Background(), name); err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to delete image", err.Error())
 	}
@@ -179,6 +190,8 @@ func (h *Handler) getBySize(c *gin.Context) {
 		invalidJSONResponse(c)
 		return
 	}
+
+	h.authorizeImageAccess(c, GetImageBySizeDTO.ID)
 
 	entityImg, err := h.imageService.GetBySize(context.Background(), GetImageBySizeDTO.ID, GetImageBySizeDTO.Size)
 	if err != nil {
@@ -199,4 +212,31 @@ func (h *Handler) getBySize(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, "image/jpeg", encodedImageBuffer.Bytes())
+}
+
+func (h *Handler) authorizeImageAccess(c *gin.Context, id string) {
+	claims, err := h.getAccessTokenFromCookie(c)
+	if err != nil {
+		writeErrorResponse(c, http.StatusUnauthorized, "Auth", "failed to get access token")
+		c.Abort()
+	}
+
+	idInFile := h.extractUserIDFromImageFilename(id)
+	if err != nil {
+		writeErrorResponse(c, http.StatusBadRequest, "naming", "failed to get ID from name of the file")
+		return
+	}
+
+	if claims.Sub != idInFile {
+		writeErrorResponse(c, http.StatusBadRequest, "access denied", "the user account associated with your request does not match the required credentials for this image")
+		return
+	}
+}
+
+func (h *Handler) extractUserIDFromImageFilename(str string) string {
+	startIndex := strings.LastIndex(str, "_") + 1
+	endIndex := strings.LastIndex(str, ".")
+	substring := str[startIndex:endIndex]
+
+	return substring
 }
