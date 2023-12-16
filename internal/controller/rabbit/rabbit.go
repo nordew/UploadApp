@@ -4,25 +4,31 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/nordew/UploadApp/internal/domain/entity"
 	"github.com/nordew/UploadApp/internal/domain/service"
 	"github.com/streadway/amqp"
 	"image"
 	"log/slog"
+	"time"
 )
 
 type Consumer struct {
-	channel      *amqp.Channel
-	queue        amqp.Queue
-	logger       *slog.Logger
-	imageService service.Images
+	channel          *amqp.Channel
+	queue            amqp.Queue
+	logger           *slog.Logger
+	imageService     service.Images
+	dashboardService service.Dashboards
+	userService      service.Users
 }
 
-func NewConsumer(channel *amqp.Channel, queue amqp.Queue, logger *slog.Logger, imageService service.Images) *Consumer {
+func NewConsumer(channel *amqp.Channel, queue amqp.Queue, logger *slog.Logger, imageService service.Images, dashboardService service.Dashboards, userService service.Users) *Consumer {
 	return &Consumer{
-		channel:      channel,
-		queue:        queue,
-		logger:       logger,
-		imageService: imageService,
+		channel:          channel,
+		queue:            queue,
+		logger:           logger,
+		imageService:     imageService,
+		dashboardService: dashboardService,
+		userService:      userService,
 	}
 }
 
@@ -60,6 +66,22 @@ func (c *Consumer) Consume(ctx context.Context) error {
 
 		if err := c.imageService.Upload(ctx, img, message.UserID); err != nil {
 			c.logger.Error("Upload() error: ", err)
+			return err
+		}
+
+		if err := c.userService.IncrementPhotosUploaded(ctx, message.UserID); err != nil {
+			c.logger.Error("IncrementPhotosUploaded() error: ", err)
+			return err
+		}
+
+		log := &entity.AuditLog{
+			UserID:     message.UserID,
+			ActionType: entity.Upload,
+			Timestamp:  time.Now(),
+		}
+
+		if err := c.dashboardService.CreateLog(ctx, log); err != nil {
+			c.logger.Error("CreateLog() error: ", err)
 			return err
 		}
 	}
