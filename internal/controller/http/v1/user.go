@@ -9,11 +9,7 @@ import (
 )
 
 func (h *Handler) getUser(c *gin.Context) {
-	claims, err := h.getAccessTokenFromCookie(c)
-	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Authentication error", err.Error())
-		return
-	}
+	claims := h.getAccessTokenFromRequest(c)
 
 	id := c.Param("sub")
 
@@ -25,7 +21,7 @@ func (h *Handler) getUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.GetCredantials(context.Background(), id, false)
+	user, err := h.userService.GetCredentials(context.Background(), id, false)
 	if err != nil {
 		writeErrorResponse(c, http.StatusInternalServerError, "GetCredantials failed", err.Error())
 	}
