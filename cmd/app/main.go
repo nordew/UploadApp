@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
 	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
 	"github.com/nordew/UploadApp/internal/config"
