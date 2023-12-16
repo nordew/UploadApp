@@ -8,6 +8,7 @@ import (
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/hasher"
 	"github.com/pkg/errors"
+	"sync"
 )
 
 var (
@@ -28,7 +29,7 @@ type Users interface {
 	// It returns the new access and refresh tokens, and an error if the operation fails.
 	Refresh(ctx context.Context, id, role string) (string, string, error)
 
-	GetCredantials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error)
+	GetCredentials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error)
 
 	// ChangePassword updates the user's password in the system.
 	// hashes the old and new passwords, and updates the password in the storage.
@@ -89,20 +90,36 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 		return "", "", fmt.Errorf("invalid input: %w", err)
 	}
 
-	hashedPassword, err := s.hasher.Hash(input.Password)
-	if err != nil {
-		return "", "", err
-	}
+	hashedPasswordCh := make(chan string, 1)
+	errCh := make(chan error, 1)
 
-	user, err := s.storage.GetByCredentials(ctx, input.Email, true)
-	if err != nil {
-		switch {
-		case errors.Is(err, psqldb.ErrUserNotFound):
+	go func() {
+		hashedPassword, err := s.hasher.Hash(input.Password)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		hashedPasswordCh <- hashedPassword
+	}()
+
+	userCh := make(chan *entity.User, 1)
+	go func() {
+		user, err := s.storage.GetByCredentials(ctx, input.Email, true)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		userCh <- user
+	}()
+
+	var hashedPassword string
+	var user *entity.User
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
 			return "", "", fmt.Errorf("authentication failed: %w", err)
-		case errors.Is(err, psqldb.ErrFailedToDecode):
-			return "", "", fmt.Errorf("authentication failed: %w", err)
-		default:
-			return "", "", fmt.Errorf("authentication failed: unexpected error: %w", err)
+		case hashedPassword = <-hashedPasswordCh:
+		case user = <-userCh:
 		}
 	}
 
@@ -126,22 +143,43 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 }
 
 func (s *UserService) Refresh(ctx context.Context, id, role string) (string, string, error) {
-	accessToken, refreshToken, err := s.auth.GenerateTokens(&auth.GenerateTokenClaimsOptions{
-		UserId: id,
-		Role:   role,
-	})
-	if err != nil {
-		return "", "", err
+	var accessToken, refreshToken string
+	var genErr, refreshErr error
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		accessToken, refreshToken, err = s.auth.GenerateTokens(&auth.GenerateTokenClaimsOptions{
+			UserId: id,
+			Role:   role,
+		})
+		if err != nil {
+			genErr = err
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		refreshErr = s.storage.RefreshSession(ctx, refreshToken, id)
+	}()
+
+	wg.Wait()
+
+	if genErr != nil {
+		return "", "", genErr
 	}
 
-	if err := s.storage.RefreshSession(ctx, refreshToken, id); err != nil {
-		return "", "", err
+	if refreshErr != nil {
+		return "", "", refreshErr
 	}
 
 	return accessToken, refreshToken, nil
 }
 
-func (s *UserService) GetCredantials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error) {
+func (s *UserService) GetCredentials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error) {
 	return s.storage.GetByCredentials(ctx, identifier, byEmail)
 }
 
