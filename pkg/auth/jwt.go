@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"strings"
 	"time"
 )
 
@@ -81,6 +82,8 @@ func (s *jwtAuthenticator) GenerateRefreshToken(id string, role string) (string,
 }
 
 func (s *jwtAuthenticator) ParseToken(accessToken string) (*ParseTokenClaimsOutput, error) {
+	accessToken = strings.TrimPrefix(accessToken, "Bearer ")
+
 	token, err := jwt.Parse(accessToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
