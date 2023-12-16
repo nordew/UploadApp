@@ -32,10 +32,9 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	claims, err := h.getAccessTokenFromCookie(c)
+	claims := h.getAccessTokenFromRequest(c)
 	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Auth", "failed to get access token")
-		return
+		writeErrorResponse(c, http.StatusUnauthorized, "jwt", "failed to parse accesss token")
 	}
 
 	for _, file := range files {
@@ -49,11 +48,7 @@ func (h *Handler) upload(c *gin.Context) {
 		}
 	}
 
-	response := gin.H{
-		"success": "added to queue",
-	}
-
-	writeResponse(c, http.StatusCreated, response)
+	writeResponse(c, http.StatusCreated, gin.H{})
 }
 
 func (h *Handler) processFile(c *gin.Context, file *multipart.FileHeader, userId string) error {
@@ -215,17 +210,9 @@ func (h *Handler) getBySize(c *gin.Context) {
 }
 
 func (h *Handler) authorizeImageAccess(c *gin.Context, id string) {
-	claims, err := h.getAccessTokenFromCookie(c)
-	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Auth", "failed to get access token")
-		c.Abort()
-	}
+	claims := h.getAccessTokenFromRequest(c)
 
 	idInFile := h.extractUserIDFromImageFilename(id)
-	if err != nil {
-		writeErrorResponse(c, http.StatusBadRequest, "naming", "failed to get ID from name of the file")
-		return
-	}
 
 	if claims.Sub != idInFile {
 		writeErrorResponse(c, http.StatusBadRequest, "access denied", "the user account associated with your request does not match the required credentials for this image")
