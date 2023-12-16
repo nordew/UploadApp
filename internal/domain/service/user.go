@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrValidationFailed = errors.New("invlid input")
+	ErrValidationFailed = errors.New("invalid input")
 )
 
 // Users is the interface that defines methods for user-related operations, such as sign-up and sign-in.
@@ -36,6 +36,8 @@ type Users interface {
 	// If the operation is successful, it returns nil. Otherwise, it returns an error.
 	// The error may indicate validation failures, hashing errors, or storage-related issues
 	ChangePassword(ctx context.Context, id, old, new string) error
+
+	IncrementPhotosUploaded(ctx context.Context, id string) error
 }
 
 type UserService struct {
@@ -195,4 +197,8 @@ func (s *UserService) ChangePassword(ctx context.Context, email, old, new string
 	}
 
 	return s.storage.ChangePassword(ctx, email, hashedOldPassword, hashedNewPassword)
+}
+
+func (s *UserService) IncrementPhotosUploaded(ctx context.Context, id string) error {
+	return s.storage.IncrementPhotosUploaded(ctx, id)
 }
