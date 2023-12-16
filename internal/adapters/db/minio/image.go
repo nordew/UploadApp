@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/nordew/UploadApp/internal/domain/entity"
@@ -33,7 +34,7 @@ type ImageStorage interface {
 	// The identifier is used to uniquely identify the set of images to delete.
 	// It returns an error if the deletion operation fails.
 	// The error may indicate issues with object removal or connectivity with the storage service.
-	DeleteAllImages(ctx context.Context, id, quality string) error
+	DeleteAllImages(ctx context.Context, id string) error
 }
 
 type imageStorage struct {
@@ -64,32 +65,59 @@ func (s *imageStorage) GetAll(ctx context.Context, id string) ([]entity.Image, e
 		Prefix: id,
 	})
 
-	var images []entity.Image
+	var (
+		imagesMu sync.Mutex
+		images   []entity.Image
+		wg       sync.WaitGroup
+		errCh    = make(chan error, 1)
+	)
 
 	for object := range imageCh {
 		if object.Err != nil {
-			return nil, object.Err
+			errCh <- object.Err
+			break
 		}
 
-		objectData, err := s.db.GetObject(ctx, s.bucketName, object.Key, minio.GetObjectOptions{})
+		wg.Add(1)
+
+		go func(object minio.ObjectInfo) {
+			defer wg.Done()
+
+			objectData, err := s.db.GetObject(ctx, s.bucketName, object.Key, minio.GetObjectOptions{})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			defer objectData.Close()
+
+			buf := new(bytes.Buffer)
+			if _, err := io.Copy(buf, objectData); err != nil {
+				errCh <- err
+				return
+			}
+
+			image := entity.Image{
+				ID:     id,
+				Name:   object.Key,
+				Size:   int64(buf.Len()),
+				Reader: bytes.NewReader(buf.Bytes()),
+			}
+
+			imagesMu.Lock()
+			images = append(images, image)
+			imagesMu.Unlock()
+		}(object)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	for err := range errCh {
 		if err != nil {
-			return nil, fmt.Errorf("%w", ErrObjectNotFound)
-		}
-		defer objectData.Close()
-
-		buf := new(bytes.Buffer)
-		if _, err := io.Copy(buf, objectData); err != nil {
 			return nil, err
 		}
-
-		image := entity.Image{
-			ID:     id,
-			Name:   object.Key,
-			Size:   int64(buf.Len()),
-			Reader: bytes.NewReader(buf.Bytes()),
-		}
-
-		images = append(images, image)
 	}
 
 	return images, nil
@@ -118,10 +146,8 @@ func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*ent
 	return &preparedImage, nil
 }
 
-func (s *imageStorage) DeleteAllImages(ctx context.Context, id, quality string) error {
-	connStr := fmt.Sprintf("%s_%s.jpeg", id, quality)
-
-	if err := s.db.RemoveObject(ctx, s.bucketName, connStr, minio.RemoveObjectOptions{}); err != nil {
+func (s *imageStorage) DeleteAllImages(ctx context.Context, id string) error {
+	if err := s.db.RemoveObject(ctx, s.bucketName, id, minio.RemoveObjectOptions{}); err != nil {
 		return err
 	}
 
