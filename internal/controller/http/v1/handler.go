@@ -13,22 +13,24 @@ import (
 )
 
 type Handler struct {
-	imageService service.Images
-	userService  service.Users
-	logger       *slog.Logger
-	channel      *amqp.Channel
-	auth         auth.Authenticator
-	payment      payment.Payment
+	imageService     service.Images
+	userService      service.Users
+	dashboardService service.Dashboards
+	logger           *slog.Logger
+	channel          *amqp.Channel
+	auth             auth.Authenticator
+	payment          payment.Payment
 }
 
-func NewHandler(userService service.Users, imageService service.Images, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator, payment payment.Payment) *Handler {
+func NewHandler(userService service.Users, imageService service.Images, dashboardService service.Dashboards, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator, payment payment.Payment) *Handler {
 	return &Handler{
-		userService:  userService,
-		imageService: imageService,
-		logger:       logger,
-		channel:      channel,
-		auth:         auth,
-		payment:      payment,
+		userService:      userService,
+		imageService:     imageService,
+		dashboardService: dashboardService,
+		logger:           logger,
+		channel:          channel,
+		auth:             auth,
+		payment:          payment,
 	}
 }
 
@@ -57,9 +59,16 @@ func (h *Handler) Init() *gin.Engine {
 	image.Use(h.AuthMiddleware())
 	{
 		image.POST("/upload", h.upload)
-		image.GET("/get-all", h.getAllImages)
-		image.GET("/get", h.getBySize)
+		image.GET("/all", h.getAllImages)
+		image.GET("/by-size", h.getBySize)
 		image.DELETE("/delete/:name", h.deleteAllImages)
+	}
+
+	dashboard := router.Group("/dashboard")
+	dashboard.Use(h.AuthAdminMiddleware())
+	{
+		dashboard.GET("/logs", h.getLogs)
+		dashboard.DELETE("/logs/:id", h.deleteLog)
 	}
 
 	payment := router.Group("/payment")
@@ -82,7 +91,7 @@ func invalidJSONResponse(c *gin.Context) {
 func writeErrorResponse(c *gin.Context, statusCode int, error string, errorDesc string) {
 	response := gin.H{
 		"error":             error,
-		"error_descriptipn": errorDesc,
+		"error_description": errorDesc,
 	}
 
 	c.JSON(statusCode, response)
