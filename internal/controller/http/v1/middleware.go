@@ -9,16 +9,42 @@ import (
 
 func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cookie, err := c.Cookie("access_token")
-		if err != nil {
-			writeErrorResponse(c, http.StatusUnauthorized, "Middleware", "no access token")
+		accessToken := extractTokenFromHeader(c.Request.Header, "Authorization")
+
+		if accessToken == "" {
+			writeErrorResponse(c, http.StatusUnauthorized, "auth", "access token not provided in headers")
 			c.Abort()
 			return
 		}
 
-		_, err = h.auth.ParseToken(cookie)
+		_, err := h.auth.ParseToken(accessToken)
 		if err != nil {
 			handleTokenValidationError(c, err)
+			c.Abort()
+			return
+		}
+	}
+}
+
+func (h *Handler) AuthAdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		accessToken := extractTokenFromHeader(c.Request.Header, "Authorization")
+
+		if accessToken == "" {
+			writeErrorResponse(c, http.StatusUnauthorized, "auth", "access token not provided in headers")
+			c.Abort()
+			return
+		}
+
+		claims, err := h.auth.ParseToken(accessToken)
+		if err != nil {
+			handleTokenValidationError(c, err)
+			c.Abort()
+			return
+		}
+
+		if claims.Role != "admin" {
+			writeErrorResponse(c, http.StatusUnauthorized, "auth", "user is not admin")
 			c.Abort()
 			return
 		}
