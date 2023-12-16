@@ -38,6 +38,10 @@ type UserStorage interface {
 	// ChangePassword changes the user password
 	// It returns an error if the operation fails or password stored in db doesn't match with old one.
 	ChangePassword(ctx context.Context, email, old, new string) error
+
+	// IncrementPhotosUploaded increments photos_uploaded field in database
+	// It returns an error if the operation fails
+	IncrementPhotosUploaded(ctx context.Context, userId string) error
 }
 
 type userStorage struct {
@@ -144,6 +148,15 @@ func (s *userStorage) ChangePassword(ctx context.Context, email, old, new string
 	}
 
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET password = $1 WHERE email = $2", new, email)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *userStorage) IncrementPhotosUploaded(ctx context.Context, userId string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET photos_uploaded = photos_uploaded + 1 WHERE id = $1;", userId)
 	if err != nil {
 		return err
 	}
