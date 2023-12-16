@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
-	"log"
+	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/nfnt/resize"
@@ -51,32 +52,57 @@ func NewImageService(storage miniodb.ImageStorage) *ImageService {
 	}
 }
 
-func (s *ImageService) Upload(ctx context.Context, image image.Image, userId string) error {
-	imagesRendered, quality, err := ImageQuality(image)
+func (s *ImageService) Upload(ctx context.Context, reqImage image.Image, userId string) error {
+	imagesRendered, quality, err := ImageQuality(reqImage)
 	if err != nil {
 		return err
 	}
 
 	generatedId := uuid.NewString()
 
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errCh := make(chan error, len(imagesRendered))
+
 	for i, v := range imagesRendered {
-		buf := new(bytes.Buffer)
-		if err := jpeg.Encode(buf, v, nil); err != nil {
-			return fmt.Errorf("failed to encode image")
-		}
+		wg.Add(1)
 
-		reader := bytes.NewReader(buf.Bytes())
+		go func(i int, v image.Image) {
+			defer wg.Done()
 
-		idFormatted := fmt.Sprintf("%s_%d_%s.jpeg", generatedId, quality[i], userId)
+			buf := new(bytes.Buffer)
+			if err := jpeg.Encode(buf, v, nil); err != nil {
+				mu.Lock()
+				errCh <- fmt.Errorf("failed to encode image")
+				mu.Unlock()
+				return
+			}
 
-		resImage := entity.Image{
-			Name:   idFormatted,
-			Size:   reader.Size(),
-			Reader: reader,
-		}
+			reader := bytes.NewReader(buf.Bytes())
 
-		if err := s.storage.Upload(ctx, resImage); err != nil {
-			log.Printf("upload error: %s", err)
+			idFormatted := fmt.Sprintf("%s_%d_%s.jpeg", generatedId, quality[i], userId)
+
+			resImage := entity.Image{
+				Name:   idFormatted,
+				Size:   reader.Size(),
+				Reader: reader,
+			}
+
+			if uploadErr := s.storage.Upload(ctx, resImage); uploadErr != nil {
+				mu.Lock()
+				errCh <- fmt.Errorf("upload error: %s", uploadErr)
+				mu.Unlock()
+			}
+		}(i, v)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	for err := range errCh {
+		if err != nil {
 			return err
 		}
 	}
@@ -95,13 +121,33 @@ func (s *ImageService) GetBySize(ctx context.Context, id string, size int) (*ent
 func (s *ImageService) DeleteAllImages(ctx context.Context, id string) error {
 	quality := []string{"100", "75", "50", "25"}
 
+	uuid, userId, err := extractUUIDAndUserID(id)
+	if err != nil {
+		return err
+	}
+
 	for _, v := range quality {
-		if err := s.storage.DeleteAllImages(ctx, id, v); err != nil {
+		connStr := fmt.Sprintf("%s_%s_%s", uuid, v, userId)
+
+		if err := s.storage.DeleteAllImages(ctx, connStr); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func extractUUIDAndUserID(input string) (uuid, userID string, err error) {
+	parts := strings.Split(input, "_")
+
+	if len(parts) != 3 {
+		err = fmt.Errorf("invalid input format")
+		return
+	}
+
+	uuid = parts[0]
+	userID = parts[2]
+	return
 }
 
 func ImageQuality(img image.Image) ([]image.Image, []int, error) {
