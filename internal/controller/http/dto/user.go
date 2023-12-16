@@ -5,3 +5,8 @@ type ChangePasswordDTO struct {
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
 }
+
+type TokensDTO struct {
+	AccessToken  string `json:"acces_token"`
+	RefreshToken string `json:"refresh_token"`
+}
