@@ -42,14 +42,11 @@ func (h *Handler) signIn(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("access_token", accessToken, 0, "/", "", false, true)
-	c.SetCookie("refresh_token", refreshToken, 0, "/", "", false, true)
-
-	c.JSON(http.StatusOK, gin.H{})
+	writeTokensInHeaders(c, accessToken, refreshToken)
 }
 
 func (h *Handler) refresh(c *gin.Context) {
-	claims, err := h.getRefreshTokenFromCookie(c)
+	claims := h.getRefreshTokenFromRequest(c)
 
 	accessToken, refreshToken, err := h.userService.Refresh(context.Background(), claims.Sub, claims.Role)
 	if err != nil {
@@ -57,8 +54,12 @@ func (h *Handler) refresh(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("access_token", accessToken, 0, "/", "", false, true)
-	c.SetCookie("refresh_token", refreshToken, 0, "/", "", false, true)
+	writeTokensInHeaders(c, accessToken, refreshToken)
+}
 
-	c.JSON(http.StatusOK, gin.H{})
+func writeTokensInHeaders(c *gin.Context, accessToken, refreshToken string) {
+	c.Header("Access-Token", accessToken)
+	c.Header("Refresh-Token", refreshToken)
+
+	writeResponse(c, http.StatusOK, nil)
 }
