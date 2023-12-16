@@ -1,49 +1,63 @@
-# UploadHub
+# UploadHub - Image Upload and Storage Service
 
-UploadHub is a simple image upload and storage service with user registration and authorization, built using Go, Gin, MongoDB, RabbitMQ, Minio, and Docker. Users can register, sign in, upload images, and retrieve images based on their sizes.
+UploadHub is a versatile image upload and storage service developed using Go, Gin, PostgreSQL, RabbitMQ, Minio, and Docker. This project provides user registration and authorization functionalities, allowing users to securely sign up, sign in, upload images, and retrieve images based on their sizes.
 
 ## Features
 
-- **User Registration and Authorization:** Secure user registration and authorization are implemented using JWT Tokens.
+### User Registration and Authorization
 
-- **MongoDB Integration:** User data is stored in a MongoDB database for persistence.
+Secure user registration and authorization are implemented using JWT Tokens. Users can register, sign in, and obtain JWT Tokens for authenticated access.
 
-- **Image Processing:** Uploaded images are automatically resized to 75%, 50%, and 25% of their original size. The processed images are then sent to a queue (RabbitMQ) for asynchronous handling.
+### PostgreSQL Integration
 
-- **Asynchronous Image Storage:** Processed images are stored in Minio, an object storage server, to efficiently manage and serve the images.
+User data is persistently stored in a PostgreSQL database, ensuring reliable and durable data storage for user-related information.
 
-- **Dockerized Deployment:** The project comes with its own Docker Compose file for easy deployment and scaling.
+### Image Processing
+
+Uploaded images undergo automatic resizing to 75%, 50%, and 25% of their original size. The processed images are then queued (RabbitMQ) for asynchronous handling, enhancing performance and responsiveness.
+
+### Asynchronous Image Storage
+
+Processed images are efficiently stored in Minio, an object storage server. This approach ensures effective management and rapid serving of images while maintaining scalability.
+
+### Dockerized Deployment
+
+The project is containerized with Docker, providing a convenient Docker Compose file for straightforward deployment and scaling. This simplifies the setup process and facilitates easy management of dependencies.
 
 ## Routes
 
-- **Authentication Routes:**
-  - `POST /auth/sign-up`: User registration endpoint.
-  - `GET /auth/sign-in`: User sign-in endpoint.
+### Authentication
 
-- **Image Routes:**
-  - `POST /images/upload`: Upload an image.
-  - `GET /images/get-all`: Retrieve all uploaded images.
-  - `GET /images/get`: Retrieve an image by its size (100, 75, 50, or 25). Requires authentication.
+- **Sign Up**: `POST /auth/sign-up`
+- **Sign In**: `GET /auth/sign-in`
+- **Refresh Token**: `GET /auth/refresh`
 
-## Getting Started
+### User Profile
 
-1. Clone the repository: `git clone https://github.com/your-username/UploadHub.git`
-2. Navigate to the project directory: `cd UploadHub`
-3. Set up environment variables as needed.
-4. Run the application using Docker Compose: `docker-compose up -d`
+- **Get User Profile**: `GET /profile/:sub`
 
-## Dependencies
+### Image Management
 
-- [Gin](https://github.com/gin-gonic/gin): Web framework for Go.
-- [MongoDB](https://www.mongodb.com/): NoSQL database for user data storage.
-- [RabbitMQ](https://www.rabbitmq.com/): Message queue for asynchronous image processing.
-- [Minio](https://min.io/): Object storage server for image storage.
+- **Upload Image**: `POST /images/upload`
+- **Get All Images**: `GET /images/all`
+- **Get Images by Size**: `GET /images/by-size`
+- **Delete All Images**: `DELETE /images/delete/:name`
 
-## Contributing
+### Dashboard (Admin Access Only)
 
-Contributions are welcome! Feel free to open issues or submit pull requests.
+- **Get Logs**: `GET /dashboard/logs`
+- **Delete Log**: `DELETE /dashboard/logs/:id`
 
-## License
+## Usage
 
-This project is licensed under the [MIT License](LICENSE).
+1. Clone the repository.
+2. Configure the environment variables.
+3. Run `docker-compose up` for easy deployment and scaling.
 
+Explore the various routes to leverage the features provided by UploadHub.
+
+Feel free to contribute or report issues on [GitHub](#).
+
+---
+
+*Note: This README assumes you have basic knowledge of Go, Docker, and related technologies.*
