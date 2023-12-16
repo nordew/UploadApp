@@ -56,7 +56,7 @@ func (h *Handler) Init() *gin.Engine {
 	image := router.Group("/images")
 	image.Use(h.AuthMiddleware())
 	{
-		image.POST("/upload", h.uploadImage)
+		image.POST("/upload", h.upload)
 		image.GET("/get-all", h.getAllImages)
 		image.GET("/get", h.getBySize)
 		image.DELETE("/delete/:name", h.deleteAllImages)
@@ -88,34 +88,48 @@ func writeErrorResponse(c *gin.Context, statusCode int, error string, errorDesc 
 	c.JSON(statusCode, response)
 }
 
-func (h *Handler) getAccessTokenFromCookie(c *gin.Context) (*auth.ParseTokenClaimsOutput, error) {
-	cookie, err := c.Cookie("access_token")
-	if err != nil {
-		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
-		return nil, err
+func (h *Handler) getAccessTokenFromRequest(c *gin.Context) *auth.ParseTokenClaimsOutput {
+	accessToken := extractTokenFromHeader(c.Request.Header, "Authorization")
+
+	if accessToken == "" {
+		writeErrorResponse(c, http.StatusUnauthorized, "auth", "access token not provided in headers")
+		c.Abort()
+		return nil
 	}
 
-	claims, err := h.auth.ParseToken(cookie)
+	accessTokenClaims, err := h.auth.ParseToken(accessToken)
 	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Access error", err.Error())
-		return nil, err
+		writeErrorResponse(c, http.StatusUnauthorized, "auth", "failed to parse access token")
+		c.Abort()
+		return nil
 	}
 
-	return claims, nil
+	return accessTokenClaims
 }
 
-func (h *Handler) getRefreshTokenFromCookie(c *gin.Context) (*auth.ParseTokenClaimsOutput, error) {
-	cookie, err := c.Cookie("refresh_token")
-	if err != nil {
-		writeErrorResponse(c, http.StatusBadRequest, "cookie error", err.Error())
-		return nil, err
+func (h *Handler) getRefreshTokenFromRequest(c *gin.Context) *auth.ParseTokenClaimsOutput {
+	refreshToken := extractTokenFromHeader(c.Request.Header, "Refresh-Token")
+
+	if refreshToken == "" {
+		writeErrorResponse(c, http.StatusUnauthorized, "auth", "refresh token not provided in headers")
+		c.Abort()
+		return nil
 	}
 
-	claims, err := h.auth.ParseToken(cookie)
+	refreshTokenClaims, err := h.auth.ParseToken(refreshToken)
 	if err != nil {
-		writeErrorResponse(c, http.StatusUnauthorized, "Access error", err.Error())
-		return nil, err
+		writeErrorResponse(c, http.StatusUnauthorized, "auth", "failed to parse refresh token")
+		c.Abort()
+		return nil
 	}
 
-	return claims, nil
+	return refreshTokenClaims
+}
+
+func extractTokenFromHeader(headers map[string][]string, headerKey string) string {
+	token := ""
+	if headerValues, exists := headers[headerKey]; exists && len(headerValues) > 0 {
+		token = headerValues[0]
+	}
+	return token
 }
