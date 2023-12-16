@@ -49,12 +49,14 @@ func main() {
 
 	userStorage := psqldb.NewUserStorage(postgresClient)
 	imageStorage := miniodb.NewImageStorage(minioClient, "images")
+	dashboardStorage := psqldb.NewDashboardStorage(postgresClient)
 
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
 	authenticator := auth.NewAuth()
 
 	imageService := service.NewImageService(imageStorage)
 	userService := service.NewUserService(userStorage, hasher, authenticator, cfg.Secret)
+	dashboardService := service.NewDashboardService(dashboardStorage)
 
 	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
 	if err != nil {
@@ -85,7 +87,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	consumer := controller.NewConsumer(channel, q, logger, imageService)
+	consumer := controller.NewConsumer(channel, q, logger, imageService, dashboardService, userService)
 
 	go func() {
 		if err := consumer.Consume(ctx); err != nil {
@@ -93,7 +95,7 @@ func main() {
 		}
 	}()
 
-	handler := v1.NewHandler(userService, imageService, logger, channel, authenticator, stripePayment)
+	handler := v1.NewHandler(userService, imageService, dashboardService, logger, channel, authenticator, stripePayment)
 	router := handler.Init()
 
 	go func() {
