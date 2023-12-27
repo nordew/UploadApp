@@ -3,3 +3,4 @@
 
 # Ignore configs directory
 configs/
+configs/main.yml
