@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
 
 type jwtAuthenticator struct {
 	signKey string
+	logger  *logrus.Logger
 }
 
-func NewAuth() Authenticator {
-	return &jwtAuthenticator{}
+func NewAuth(logger *logrus.Logger) Authenticator {
+	return &jwtAuthenticator{
+		logger: logger,
+	}
 }
 
 type TokenClaims struct {
@@ -41,6 +45,7 @@ func (s *jwtAuthenticator) GenerateTokens(options *GenerateTokenClaimsOptions) (
 
 	refreshToken, err := s.GenerateRefreshToken(options.UserId, options.Role)
 	if err != nil {
+		s.logger.WithError(err).Error("failed to generate refresh token")
 		return "", "", err
 	}
 
@@ -48,6 +53,7 @@ func (s *jwtAuthenticator) GenerateTokens(options *GenerateTokenClaimsOptions) (
 
 	accessToken, err := token.SignedString(mySigningKey)
 	if err != nil {
+		s.logger.WithError(err).Error("failed to sign access token")
 		return "", "", err
 	}
 
@@ -75,6 +81,7 @@ func (s *jwtAuthenticator) GenerateRefreshToken(id string, role string) (string,
 
 	signedRefreshToken, err := refreshToken.SignedString(mySigningKey)
 	if err != nil {
+		s.logger.WithError(err).Error("failed to sign refresh token")
 		return "", err
 	}
 
@@ -92,10 +99,12 @@ func (s *jwtAuthenticator) ParseToken(accessToken string) (*ParseTokenClaimsOutp
 		return []byte(s.signKey), nil
 	})
 	if err != nil {
+		s.logger.WithError(err).Error("failed to parse jwt token")
 		return nil, fmt.Errorf("failed to parse jwt token: %w", err)
 	}
 
 	if !token.Valid {
+		s.logger.Error("token is not valid")
 		return nil, fmt.Errorf("token is not valid")
 	}
 
@@ -103,10 +112,12 @@ func (s *jwtAuthenticator) ParseToken(accessToken string) (*ParseTokenClaimsOutp
 
 	role := claims["role"]
 	if role == nil {
+		s.logger.Error("token is not valid: missing role")
 		return nil, fmt.Errorf("token is not valid")
 	}
 	sub := claims["sub"]
 	if sub == nil {
+		s.logger.Error("token is not valid: missing subject")
 		return nil, fmt.Errorf("token is not valid")
 	}
 

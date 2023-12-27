@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"github.com/nordew/UploadApp/pkg/payment"
-	"log/slog"
+	"github.com/sirupsen/logrus"
 	"net/http"
 
 	"github.com/nordew/UploadApp/pkg/auth"
@@ -16,13 +15,18 @@ type Handler struct {
 	imageService     service.Images
 	userService      service.Users
 	dashboardService service.Dashboards
-	logger           *slog.Logger
+	logger           *logrus.Logger
 	channel          *amqp.Channel
 	auth             auth.Authenticator
-	payment          payment.Payment
 }
 
-func NewHandler(userService service.Users, imageService service.Images, dashboardService service.Dashboards, logger *slog.Logger, channel *amqp.Channel, auth auth.Authenticator, payment payment.Payment) *Handler {
+func NewHandler(
+	userService service.Users,
+	imageService service.Images,
+	dashboardService service.Dashboards,
+	logger *logrus.Logger,
+	channel *amqp.Channel,
+	auth auth.Authenticator) *Handler {
 	return &Handler{
 		userService:      userService,
 		imageService:     imageService,
@@ -30,7 +34,6 @@ func NewHandler(userService service.Users, imageService service.Images, dashboar
 		logger:           logger,
 		channel:          channel,
 		auth:             auth,
-		payment:          payment,
 	}
 }
 
@@ -98,9 +101,12 @@ func writeErrorResponse(c *gin.Context, statusCode int, error string, errorDesc 
 }
 
 func (h *Handler) getAccessTokenFromRequest(c *gin.Context) *auth.ParseTokenClaimsOutput {
+	logger := h.logger.WithField("function", "getAccessTokenFromRequest")
+
 	accessToken := extractTokenFromHeader(c.Request.Header, "Authorization")
 
 	if accessToken == "" {
+		logger.Error("access token not provided in headers")
 		writeErrorResponse(c, http.StatusUnauthorized, "auth", "access token not provided in headers")
 		c.Abort()
 		return nil
@@ -108,6 +114,7 @@ func (h *Handler) getAccessTokenFromRequest(c *gin.Context) *auth.ParseTokenClai
 
 	accessTokenClaims, err := h.auth.ParseToken(accessToken)
 	if err != nil {
+		logger.WithError(err).Error("failed to parse access token")
 		writeErrorResponse(c, http.StatusUnauthorized, "auth", "failed to parse access token")
 		c.Abort()
 		return nil
@@ -117,9 +124,12 @@ func (h *Handler) getAccessTokenFromRequest(c *gin.Context) *auth.ParseTokenClai
 }
 
 func (h *Handler) getRefreshTokenFromRequest(c *gin.Context) *auth.ParseTokenClaimsOutput {
+	logger := h.logger.WithField("function", "getRefreshTokenFromRequest")
+
 	refreshToken := extractTokenFromHeader(c.Request.Header, "Refresh-Token")
 
 	if refreshToken == "" {
+		logger.Error("refresh token not provided in headers")
 		writeErrorResponse(c, http.StatusUnauthorized, "auth", "refresh token not provided in headers")
 		c.Abort()
 		return nil
@@ -127,6 +137,7 @@ func (h *Handler) getRefreshTokenFromRequest(c *gin.Context) *auth.ParseTokenCla
 
 	refreshTokenClaims, err := h.auth.ParseToken(refreshToken)
 	if err != nil {
+		logger.WithError(err).Error("failed to parse refresh token")
 		writeErrorResponse(c, http.StatusUnauthorized, "auth", "failed to parse refresh token")
 		c.Abort()
 		return nil

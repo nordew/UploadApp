@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"sync"
 
@@ -40,27 +41,35 @@ type ImageStorage interface {
 type imageStorage struct {
 	db         *minio.Client
 	bucketName string
+	logger     *logrus.Logger
 }
 
-func NewImageStorage(db *minio.Client, bucketName string) *imageStorage {
+func NewImageStorage(db *minio.Client, bucketName string, logger *logrus.Logger) *imageStorage {
 	return &imageStorage{
 		db:         db,
 		bucketName: bucketName,
+		logger:     logger,
 	}
 }
 
 func (s *imageStorage) Upload(ctx context.Context, image entity.Image) error {
+	logger := s.logger.WithField("function", "Upload")
+
 	_, err := s.db.PutObject(ctx, s.bucketName, image.Name, image.Reader, image.Size, minio.PutObjectOptions{
 		ContentType: "image/jpeg",
 	})
 	if err != nil {
+		logger.WithError(err).Error("failed to upload image")
 		return err
 	}
 
+	logger.Info("Upload: image uploaded successfully")
 	return nil
 }
 
 func (s *imageStorage) GetAll(ctx context.Context, id string) ([]entity.Image, error) {
+	logger := s.logger.WithField("function", "GetAll")
+
 	imageCh := s.db.ListObjects(ctx, s.bucketName, minio.ListObjectsOptions{
 		Prefix: id,
 	})
@@ -116,23 +125,29 @@ func (s *imageStorage) GetAll(ctx context.Context, id string) ([]entity.Image, e
 
 	for err := range errCh {
 		if err != nil {
+			logger.WithError(err).Error("error during image retrieval")
 			return nil, err
 		}
 	}
 
+	logger.Info("GetAll: images retrieved successfully")
 	return images, nil
 }
 
 func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*entity.Image, error) {
+	logger := s.logger.WithField("function", "GetBySize")
+
 	prompt := fmt.Sprintf("%s_%d", id, size)
 
 	image, err := s.db.GetObject(ctx, s.bucketName, prompt, minio.GetObjectOptions{})
 	if err != nil {
+		logger.WithError(err).Errorf("failed to get image by size for ID: %s, Size: %d", id, size)
 		return nil, fmt.Errorf("%w", ErrObjectNotFound)
 	}
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, image); err != nil {
+		logger.WithError(err).Error("failed to copy image data")
 		return nil, err
 	}
 
@@ -143,13 +158,18 @@ func (s *imageStorage) GetBySize(ctx context.Context, id string, size int) (*ent
 		Reader: bytes.NewReader(buf.Bytes()),
 	}
 
+	logger.Infof("GetBySize: image retrieved successfully for ID: %s, Size: %d", id, size)
 	return &preparedImage, nil
 }
 
 func (s *imageStorage) DeleteAllImages(ctx context.Context, id string) error {
+	logger := s.logger.WithField("function", "DeleteAllImages")
+
 	if err := s.db.RemoveObject(ctx, s.bucketName, id, minio.RemoveObjectOptions{}); err != nil {
+		logger.WithError(err).Errorf("failed to delete images for ID: %s", id)
 		return err
 	}
 
+	logger.Infof("DeleteAllImages: images deleted successfully for ID: %s", id)
 	return nil
 }

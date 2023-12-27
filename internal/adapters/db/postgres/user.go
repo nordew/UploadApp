@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/nordew/UploadApp/internal/domain/entity"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -45,7 +46,8 @@ type UserStorage interface {
 }
 
 type userStorage struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *logrus.Logger
 }
 
 func NewUserStorage(db *sql.DB) *userStorage {
@@ -60,8 +62,11 @@ func IsDuplicateKeyError(err error) bool {
 }
 
 func (s *userStorage) Create(ctx context.Context, user entity.User) error {
+	logger := s.logger.WithField("function", "Create")
+
 	userId, err := uuid.NewUUID()
 	if err != nil {
+		logger.WithError(err).Error("failed to generate UUID")
 		return err
 	}
 
@@ -72,9 +77,11 @@ func (s *userStorage) Create(ctx context.Context, user entity.User) error {
 
 	if err != nil {
 		if IsDuplicateKeyError(err) {
+			logger.WithError(err).Error("duplicate key error")
 			return fmt.Errorf("%w: %v", ErrDuplicateKey, err)
 		}
 
+		logger.WithError(err).Error("failed to insert user")
 		return fmt.Errorf("%w: %v", ErrFailedToInsert, err)
 	}
 
@@ -82,6 +89,8 @@ func (s *userStorage) Create(ctx context.Context, user entity.User) error {
 }
 
 func (s *userStorage) GetByCredentials(ctx context.Context, identifier string, byEmail bool) (*entity.User, error) {
+	logger := s.logger.WithField("function", "GetByCredentials")
+
 	var user entity.User
 
 	var query string
@@ -108,8 +117,10 @@ func (s *userStorage) GetByCredentials(ctx context.Context, identifier string, b
 
 	if err := row.Scan(&user.ID, &user.Name, &user.Email, &user.Password, &user.PhotosUploaded, &user.Role); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			logger.WithError(err).Errorf("user not found for identifier %s", identifier)
 			return nil, fmt.Errorf("%w: user not found for identifier %s", ErrUserNotFound, identifier)
 		}
+		logger.WithError(err).Error("failed to decode user")
 		return nil, fmt.Errorf("%w: %v", ErrFailedToDecode, err)
 	}
 
@@ -117,8 +128,11 @@ func (s *userStorage) GetByCredentials(ctx context.Context, identifier string, b
 }
 
 func (s *userStorage) CreateRefreshToken(ctx context.Context, token string, id string) error {
+	logger := s.logger.WithField("function", "CreateRefreshToken")
+
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE id = $2;", token, id)
 	if err != nil {
+		logger.WithError(err).Error("failed to create refresh token")
 		return err
 	}
 
@@ -126,8 +140,11 @@ func (s *userStorage) CreateRefreshToken(ctx context.Context, token string, id s
 }
 
 func (s *userStorage) RefreshSession(ctx context.Context, oldToken string, newToken string) error {
+	logger := s.logger.WithField("function", "RefreshSession")
+
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET refresh_token = $1 WHERE refresh_token = $2;", oldToken, newToken)
 	if err != nil {
+		logger.WithError(err).Error("no such refresh token")
 		return fmt.Errorf("no such refresh token")
 	}
 
@@ -135,20 +152,25 @@ func (s *userStorage) RefreshSession(ctx context.Context, oldToken string, newTo
 }
 
 func (s *userStorage) ChangePassword(ctx context.Context, email, old, new string) error {
+	logger := s.logger.WithField("function", "ChangePassword")
+
 	var dbPassword string
 
 	row := s.db.QueryRowContext(ctx, "SELECT password FROM users WHERE email = $1", email)
 
 	if err := row.Scan(&dbPassword); err != nil {
+		logger.WithError(err).Error("failed to get password from database")
 		return err
 	}
 
 	if dbPassword != old {
+		logger.Error("invalid old password")
 		return fmt.Errorf("invalid old password")
 	}
 
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET password = $1 WHERE email = $2", new, email)
 	if err != nil {
+		logger.WithError(err).Error("failed to change password")
 		return err
 	}
 
@@ -156,8 +178,11 @@ func (s *userStorage) ChangePassword(ctx context.Context, email, old, new string
 }
 
 func (s *userStorage) IncrementPhotosUploaded(ctx context.Context, userId string) error {
+	logger := s.logger.WithField("function", "IncrementPhotosUploaded")
+
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET photos_uploaded = photos_uploaded + 1 WHERE id = $1;", userId)
 	if err != nil {
+		logger.WithError(err).Error("failed to increment photos uploaded count")
 		return err
 	}
 

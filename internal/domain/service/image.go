@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"image"
 	"image/jpeg"
 	"strings"
@@ -44,17 +45,20 @@ type Images interface {
 
 type ImageService struct {
 	storage miniodb.ImageStorage
+	logger  *logrus.Logger
 }
 
-func NewImageService(storage miniodb.ImageStorage) *ImageService {
+func NewImageService(storage miniodb.ImageStorage, logger *logrus.Logger) *ImageService {
 	return &ImageService{
 		storage: storage,
+		logger:  logger,
 	}
 }
 
 func (s *ImageService) Upload(ctx context.Context, reqImage image.Image, userId string) error {
 	imagesRendered, quality, err := ImageQuality(reqImage)
 	if err != nil {
+		s.logger.WithError(err).Error("failed to calculate image quality")
 		return err
 	}
 
@@ -92,6 +96,7 @@ func (s *ImageService) Upload(ctx context.Context, reqImage image.Image, userId 
 				mu.Lock()
 				errCh <- fmt.Errorf("upload error: %s", uploadErr)
 				mu.Unlock()
+				s.logger.WithError(uploadErr).Error("failed to upload image")
 			}
 		}(i, v)
 	}
@@ -103,10 +108,12 @@ func (s *ImageService) Upload(ctx context.Context, reqImage image.Image, userId 
 
 	for err := range errCh {
 		if err != nil {
+			s.logger.WithError(err).Error("error encountered during image processing")
 			return err
 		}
 	}
 
+	s.logger.Info("image upload completed successfully")
 	return nil
 }
 
@@ -123,6 +130,7 @@ func (s *ImageService) DeleteAllImages(ctx context.Context, id string) error {
 
 	uuid, userId, err := extractUUIDAndUserID(id)
 	if err != nil {
+		s.logger.WithError(err).Error("DeleteAllImages: failed to extract UUID and userID")
 		return err
 	}
 
@@ -130,6 +138,7 @@ func (s *ImageService) DeleteAllImages(ctx context.Context, id string) error {
 		connStr := fmt.Sprintf("%s_%s_%s", uuid, v, userId)
 
 		if err := s.storage.DeleteAllImages(ctx, connStr); err != nil {
+			s.logger.WithError(err).Error("DeleteAllImages: failed to delete images")
 			return err
 		}
 	}

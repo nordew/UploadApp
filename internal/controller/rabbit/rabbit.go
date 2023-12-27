@@ -6,22 +6,22 @@ import (
 	"encoding/json"
 	"github.com/nordew/UploadApp/internal/domain/entity"
 	"github.com/nordew/UploadApp/internal/domain/service"
+	"github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"image"
-	"log/slog"
 	"time"
 )
 
 type Consumer struct {
 	channel          *amqp.Channel
 	queue            amqp.Queue
-	logger           *slog.Logger
+	logger           *logrus.Logger
 	imageService     service.Images
 	dashboardService service.Dashboards
 	userService      service.Users
 }
 
-func NewConsumer(channel *amqp.Channel, queue amqp.Queue, logger *slog.Logger, imageService service.Images, dashboardService service.Dashboards, userService service.Users) *Consumer {
+func NewConsumer(channel *amqp.Channel, queue amqp.Queue, logger *logrus.Logger, imageService service.Images, dashboardService service.Dashboards, userService service.Users) *Consumer {
 	return &Consumer{
 		channel:          channel,
 		queue:            queue,

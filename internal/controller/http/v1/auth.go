@@ -11,34 +11,33 @@ func (h *Handler) signUp(c *gin.Context) {
 	var input entity.SignUpInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		h.logger.WithError(err).Error("signUp: invalid JSON body")
 		invalidJSONResponse(c)
-		h.logger.Error("signUp: invalid JSON body ", err)
 		return
 	}
 
 	if err := h.userService.SignUp(context.TODO(), input); err != nil {
+		h.logger.WithError(err).Error("signUp: failed to SignUp")
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to SignUp", err.Error())
-		h.logger.Debug(err.Error())
 		return
 	}
 
 	writeResponse(c, http.StatusCreated, gin.H{})
-	h.logger.Debug("signUp: user was created")
 }
 
 func (h *Handler) signIn(c *gin.Context) {
 	var input entity.SignInInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		h.logger.WithError(err).Error("signIn: failed to parse data")
 		invalidJSONResponse(c)
-		h.logger.Error("signIn: failed to parse data ", err)
 		return
 	}
 
 	accessToken, refreshToken, err := h.userService.SignIn(context.Background(), input)
 	if err != nil {
+		h.logger.WithError(err).Error("signIn: failed to SignIn")
 		writeErrorResponse(c, http.StatusInternalServerError, "failed to SignIn", err.Error())
-		h.logger.Error(err.Error())
 		return
 	}
 
@@ -61,5 +60,5 @@ func writeTokensInHeaders(c *gin.Context, accessToken, refreshToken string) {
 	c.Header("Access-Token", accessToken)
 	c.Header("Refresh-Token", refreshToken)
 
-	writeResponse(c, http.StatusOK, nil)
+	writeResponse(c, http.StatusOK, gin.H{})
 }

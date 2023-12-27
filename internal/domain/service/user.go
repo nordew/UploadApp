@@ -8,6 +8,7 @@ import (
 	"github.com/nordew/UploadApp/pkg/auth"
 	"github.com/nordew/UploadApp/pkg/hasher"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -44,26 +45,30 @@ type UserService struct {
 	storage psqldb.UserStorage
 	hasher  hasher.PasswordHasher
 	auth    auth.Authenticator
+	logger  *logrus.Logger
 
 	hmacSecret string
 }
 
-func NewUserService(storage psqldb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, hmacSecret string) *UserService {
+func NewUserService(storage psqldb.UserStorage, hasher hasher.PasswordHasher, auth auth.Authenticator, logger *logrus.Logger, hmacSecret string) *UserService {
 	return &UserService{
 		storage:    storage,
 		hasher:     hasher,
 		auth:       auth,
+		logger:     logger,
 		hmacSecret: hmacSecret,
 	}
 }
 
 func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) error {
 	if err := input.Validate(); err != nil {
+		s.logger.WithError(err).Error("SignUp: validation failed")
 		return ErrValidationFailed
 	}
 
 	hashedPassword, err := s.hasher.Hash(input.Password)
 	if err != nil {
+		s.logger.WithError(err).Error("SignUp: failed to hash password")
 		return errors.Wrap(err, "failed to hash password")
 	}
 
@@ -76,14 +81,18 @@ func (s *UserService) SignUp(ctx context.Context, input entity.SignUpInput) erro
 	if err := s.storage.Create(ctx, user); err != nil {
 		switch {
 		case errors.Is(err, psqldb.ErrDuplicateKey):
-			return fmt.Errorf("email already exists: %w", err)
+			s.logger.WithError(err).Error("SignUp: email already exists")
+			return fmt.Errorf("SignUp: email already exists: %w", err)
 		case errors.Is(err, psqldb.ErrFailedToInsert):
-			return fmt.Errorf("failed to create user: %w", err)
+			s.logger.WithError(err).Error("SignUp: failed to create user")
+			return fmt.Errorf("SignUp: failed to create user: %w", err)
 		default:
-			return fmt.Errorf("failed to create user: %w", err)
+			s.logger.WithError(err).Error("SignUp: failed to create user")
+			return fmt.Errorf("SignUp: failed to create user: %w", err)
 		}
 	}
 
+	s.logger.Info("SignUp: user created successfully")
 	return nil
 }
 
@@ -98,6 +107,7 @@ func (s *UserService) SignIn(ctx context.Context, input entity.SignInInput) (str
 	go func() {
 		hashedPassword, err := s.hasher.Hash(input.Password)
 		if err != nil {
+			s.logger.WithError(err).Error("failed to hash password")
 			errCh <- err
 			return
 		}
