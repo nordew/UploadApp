@@ -1,12 +1,16 @@
 package logging
 
 import (
-	"log/slog"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
-func NewLogger() *slog.Logger {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
+func NewLogger() *logrus.Logger {
+	logger := logrus.New()
+
+	logger.SetFormatter(&logrus.JSONFormatter{})
+
+	logger.SetOutput(os.Stdout)
 
 	return logger
 }
