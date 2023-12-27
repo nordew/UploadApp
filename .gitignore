@@ -4,3 +4,5 @@
 # Ignore configs directory
 configs/
 configs/main.yml
+
+.DS_Store
