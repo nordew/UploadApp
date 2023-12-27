@@ -15,8 +15,6 @@ import (
 	"github.com/nordew/UploadApp/pkg/client/rabbit"
 	"github.com/nordew/UploadApp/pkg/hasher"
 	"github.com/nordew/UploadApp/pkg/logging"
-	"github.com/nordew/UploadApp/pkg/payment"
-	"github.com/stripe/stripe-go/v76"
 )
 
 func main() {
@@ -48,14 +46,14 @@ func main() {
 	}
 
 	userStorage := psqldb.NewUserStorage(postgresClient)
-	imageStorage := miniodb.NewImageStorage(minioClient, "images")
-	dashboardStorage := psqldb.NewDashboardStorage(postgresClient)
+	imageStorage := miniodb.NewImageStorage(minioClient, "images", logger)
+	dashboardStorage := psqldb.NewDashboardStorage(postgresClient, logger)
 
 	hasher := hasher.NewPasswordHasher(cfg.Salt)
-	authenticator := auth.NewAuth()
+	authenticator := auth.NewAuth(logger)
 
-	imageService := service.NewImageService(imageStorage)
-	userService := service.NewUserService(userStorage, hasher, authenticator, cfg.Secret)
+	imageService := service.NewImageService(imageStorage, logger)
+	userService := service.NewUserService(userStorage, hasher, authenticator, logger, cfg.Secret)
 	dashboardService := service.NewDashboardService(dashboardStorage)
 
 	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
@@ -82,9 +80,6 @@ func main() {
 		logger.Error("failed to declare queue")
 	}
 
-	stripe.Key = cfg.StripeKey
-	stripePayment := payment.NewPayement()
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	consumer := controller.NewConsumer(channel, q, logger, imageService, dashboardService, userService)
@@ -95,7 +90,7 @@ func main() {
 		}
 	}()
 
-	handler := v1.NewHandler(userService, imageService, dashboardService, logger, channel, authenticator, stripePayment)
+	handler := v1.NewHandler(userService, imageService, dashboardService, logger, channel, authenticator)
 	router := handler.Init()
 
 	go func() {
