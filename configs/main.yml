@@ -5,6 +5,9 @@ PGUser: "postgres"
 PGDBName: "postgres"
 PGSSLMode: "disable"
 PGPassword: "131212"
+RedisAddr: "localhost:6379"
+RedisPass: ""
+RedisDB: "0"
 Salt: '@*($djjasd'
 Secret: 'norman!28'
 MinioHost: 'localhost'
