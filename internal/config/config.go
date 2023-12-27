@@ -21,8 +21,6 @@ type ConfigInfo struct {
 	MinioPassword string
 
 	Rabbit string
-
-	StripeKey string
 }
 
 func NewConfig(name, fileType, path string) (*ConfigInfo, error) {
