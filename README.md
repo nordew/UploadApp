@@ -43,6 +43,9 @@ The project is containerized with Docker, providing a convenient Docker Compose 
 - **Get Images by Size**: `GET /images/by-size`
 - **Delete All Images**: `DELETE /images/delete/:name`
 
+- ### Profile
+- **Get**: `GET /profile/get/:sub`
+  
 ### Dashboard (Admin Access Only)
 
 - **Get Logs**: `GET /dashboard/logs`
