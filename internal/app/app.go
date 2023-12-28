@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	miniodb "github.com/nordew/UploadApp/internal/adapters/db/minio"
 	psqldb "github.com/nordew/UploadApp/internal/adapters/db/postgres"
 	"github.com/nordew/UploadApp/internal/config"
@@ -20,13 +21,13 @@ import (
 	"syscall"
 )
 
-func Run() {
+func Run() error {
 	logger := logging.NewLogger()
 
 	cfg, err := config.NewConfig("main", "yml", "./configs")
 	if err != nil {
 		logger.Error("failed to create config: ", err)
-		return
+		return fmt.Errorf("failed to create config: %w", err)
 	}
 
 	postgresClient, err := psql.NewPostgres(&psql.ConnectionInfo{
@@ -40,13 +41,13 @@ func Run() {
 
 	if err != nil {
 		logger.Error("failed to connect to postgres: ", err)
-		return
+		return fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
 	minioClient, err := minio.NewMinioClient(cfg.MinioHost, cfg.MinioUser, cfg.MinioPassword, false, cfg.MinioPort)
 	if err != nil {
 		logger.Error("failed to connect to minio: ", err)
-		return
+		return fmt.Errorf("failed to connect to minio: %w", err)
 	}
 
 	userStorage := psqldb.NewUserStorage(postgresClient)
@@ -63,13 +64,13 @@ func Run() {
 	conn, err := rabbit.NewRabbitClient(cfg.Rabbit)
 	if err != nil {
 		logger.Error("failed to connect to rabbit: ", err)
-		return
+		return fmt.Errorf("failed to connect to rabbit: %w", err)
 	}
 
 	channel, err := conn.Channel()
 	if err != nil {
 		logger.Error("failed to open channel: ", err)
-		return
+		return fmt.Errorf("failed to open channel: %w", err)
 	}
 
 	q, err := channel.QueueDeclare(
@@ -83,7 +84,7 @@ func Run() {
 
 	if err != nil {
 		logger.Error("failed to declare queue")
-		return
+		return fmt.Errorf("failed to declare queue: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -93,7 +94,6 @@ func Run() {
 	go func() {
 		if err := consumer.Consume(ctx); err != nil {
 			logger.Error("failed to consume")
-			return
 		}
 	}()
 
@@ -115,4 +115,6 @@ func Run() {
 		logger.Info("Received signal. Shutting down...")
 		cancel()
 	}
+
+	return nil
 }
